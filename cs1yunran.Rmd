@@ -1,0 +1,50 @@
+---
+title: "cs1yunran"
+author: "YunranChen"
+date: "1/14/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(corrplot)
+library(naniar)
+library(ggplot2)
+library(dplyr)
+library(tibble)
+```
+
+```{r load data}
+data=readRDS("Longnecker.rds")
+data
+```
+
+## missing data 
+
+- drop the albumin
+- impute or drop the score_* ? can explore the relation of the complete data to see whether a significant relation?
+- drop the pcb_* NA
+
+```{r}
+vis_miss(data)
+gg_miss_upset(data)
+```
+
+## correlation between variables
+
+```{r eda}
+summary(data)
+
+
+M=cor(as.matrix(na.omit(data[,c(1:12,19)])))
+corrplot(M)
+
+
+data_=data%>%mutate(race=as.numeric(race))
+M1=cor(as.matrix(na.omit(data_)))
+corrplot(M1)
+na.omit(data)
+data=as.tibble(data)
+
+```
+
