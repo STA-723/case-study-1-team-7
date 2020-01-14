@@ -12,39 +12,88 @@ library(naniar)
 library(ggplot2)
 library(dplyr)
 library(tibble)
+library(tidyr)
 ```
 
 ```{r load data}
 data=readRDS("Longnecker.rds")
-data
+data=data%>%select(gestational_age,dde:cholesterol,center)
+data #reorder the column, put the gestational_age as the first col
 ```
 
-## missing data 
+## missing data analysis
 
-- drop the albumin
-- impute or drop the score_* ? can explore the relation of the complete data to see whether a significant relation?
+- over 90% missing `albumin`, around 20% missing `score_*`; others less than 0.1%
+- around 474 out of 2380 missing `score_*` together. (usually `score_*` miss together)
+- Each center have missing values but distinct proportion of missing values.
+
+
+
+- drop the albumin (check whether bias exist?)
+- impute or drop the score_* ? can explore the relation of the complete data to see whether a significant relation? Then decide?
 - drop the pcb_* NA
 
 ```{r}
 vis_miss(data)
 gg_miss_upset(data)
+gg_miss_var(data,facet = center)
 ```
 
 ## correlation between variables
 
+Goal: evaluate the correlation between dde, pcbs and y (gestational_age)
+Y: discrete I(<37) (preferred but info loss) or continuous ?
+X: 
+- all covariates have weak correlation to Y
+- strong correlation between pcbs ->summary?
+- center: as a group -- hierachical model?
+- cholesteroal and triglycerides need to be controlled; have positive correlation to pcb/dde
+- race matters; have interaction with pcbs
+- scores matters: have interaction with pcbs + dde + age; but 20% missing
+- the missing of albumin may due to some reason: the data w/o missing show stronger correlation to Y
+
+Hierarchical Regression? Testing pcbs as a group variates or pick some important pcbs(118, 138, 153) -- variable selection or combine them? 
+How to deal with missing values?
+
+[Removing the `score_*` and `albumin` + complete cases] 
+- super weak relation to covariates: almost negative(make sense); to dde (-0.09), triglycerides (-0.08), race (-0.06)
+- strong positive correlation among covariates especially from pcb_074 to pcb_203; positive correlation between dde and pcb_; cholesterol and triglycerides have positive correlation to dde and pcb_(make sense); negative relation between race and pcb_028-118 then flip to positive relation (interesting.-interaction?);
+- heterogeneity across distinct centers: (meaningless but ...) positive correlation to dde(0.17), race(0.38); negative correlation to ppb_074(-0.28), ppb_105(-0.16), ppb_118(-0.2), triglycerides(-0.18), maternal_age(0.18), 
+
+[Remove `albumin` + complete cases]
+- scores_ negative related to dde (-0.15), race (-0.27 to -0.39) , but positive to y(0.08), pcb028-118(0.1+); positive correlation among scores_ (0.42-0.53);
+
+[complete cases]
+- `albumin` positive correlation to dde and pcb
+- relative stronger relation compared to the previous one; stronger negative correlation for pcb_153-race; pcb_074-118,income & occupation do not effect.
+- relative stronger relation between scores to pcb153-203 compared to previous 
+
 ```{r eda}
-summary(data)
-
-
-M=cor(as.matrix(na.omit(data[,c(1:12,19)])))
-corrplot(M)
-
-
 data_=data%>%mutate(race=as.numeric(race))
-M1=cor(as.matrix(na.omit(data_)))
-corrplot(M1)
+
+M=cor(as.matrix(na.omit(data_[,c(1:13,15:16,20:23)])))
+corrplot.mixed(M,number.cex=.6, upper="ellipse")
+
+M1=cor(as.matrix(na.omit(data_[,c(1:13,15:23)])))
+corrplot.mixed(M1,number.cex=.6, upper="ellipse")
+
+
+M2=cor(as.matrix(na.omit(data_)))
+corrplot.mixed(M2,number.cex=.5, upper="ellipse")
+
 na.omit(data)
 data=as.tibble(data)
+
+```
+
+
+```{r}
+ggplot(data_,mapping = aes(x=gestational_age))+geom_histogram()+theme_bw()+geom_vline(xintercept =37)
+ggplot(data,mapping = aes(x=as.factor(center),y=gestational_age,color=race))+geom_boxplot()+theme_bw()
+datapcb=data_%>%select(pcb_028:pcb_203,race,center)%>%gather(data=.,key = pcb,value = dose,-race,-center)%>%mutate(center=factor(center),race=factor(race))
+datapcb
+ggplot(datapcb,aes(x=pcb,y=dose,color=race))+geom_boxplot()+theme_bw()+facet_wrap(.~center)
+#if not wrapped by center, before 118, black less than white then flip. But consider the center, black always greater than white.
 
 ```
 
