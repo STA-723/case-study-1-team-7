@@ -1,0 +1,124 @@
+---
+title: "cs1Xiaojun"
+output: pdf_document
+---
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(MASS)
+library(ggpubr)
+Longnecker <- readRDS("C:/Users/XJ/Desktop/case-study-1-team-7/Longnecker.rds")
+head(Longnecker)
+```
+
+## about 93% missing for albumin, 20% missing for scores
+## if we consider gestational_age > 42 as measurement error, we have about 200 observations
+- not a good idea to delete them
+- might think about setting those values as 42
+## Correlation between variables
+- Large association between PCBs expect the first two concentration values
+- Not able to find great association between gestational age and other variables
+## Should use log pcb to make it normal
+## pcb 074, 170 and gestational age. It seems the association becomes more distinguishable among race as the concentration increases
+## center 15 and 37 tend to have high premature ratio, and we find that those centers have mainly black people
+## unbalanced number between white and black if the maternal age is <20
+## center 5 and 66 have more older mother
+
+```{r}
+### missing data for each variable
+colSums(is.na(Longnecker))
+colSums(is.na(Longnecker))/nrow(Longnecker)
+
+### Gestational_age
+hist(Longnecker$gestational_age)
+### above 42 might be measurement error
+sum(Longnecker$gestational_age > 42)
+
+### Correlation between variables
+data_corr<- Longnecker %>%
+  dplyr::select(-c(albumin, score_education, score_income, score_occupation))
+data_corr$race<- as.numeric(data_corr$race)
+data_corr_age<- data_corr[data_corr$gestational_age <=42, ]
+
+M=cor(as.matrix(na.omit(data_corr)))
+corrplot.mixed(M,number.cex=.6)
+
+M=cor(as.matrix(na.omit(data_corr_age))) ### correlation between gestational age and others becomes higher when we deleted the measurement error
+corrplot.mixed(M,number.cex=.6)
+
+### PCB
+hist(Longnecker$pcb_028)
+hist(log(Longnecker$pcb_028))
+hist(Longnecker$pcb_052)
+hist(log(Longnecker$pcb_052))
+hist(Longnecker$pcb_074)
+hist(log(Longnecker$pcb_074))
+hist(Longnecker$pcb_170)
+hist(log(Longnecker$pcb_170))
+
+### race
+table(Longnecker$race)
+
+data_age<- data[data$gestational_age <=42, ]
+### Three more variables
+qplot(x = cholesterol, y = gestational_age, data=data_age, color = factor(smoking_status))
+qplot(x = cholesterol, y = gestational_age, data=data, color = factor(smoking_status))
+
+qplot(x = triglycerides, y = gestational_age, data=data_age, color = factor(smoking_status))
+qplot(x = dde, y = gestational_age, data=data_age, color = factor(smoking_status))
+
+qplot(x = dde, y = gestational_age, data=data_age, color = race)
+qplot(x = pcb_028, y = gestational_age, data=data_age, color = race)
+qplot(x = pcb_052, y = gestational_age, data=data_age, color = race)
+### seems to have some relationship 
+qplot(x = pcb_074, y = gestational_age, data=data_age, color = race)
+qplot(x = pcb_170, y = gestational_age, data=data_age, color = race)
+qplot(x = pcb_194, y = gestational_age, data=data_age, color = race)
+
+### center 15 and 37
+table(data_age$center)
+boxplot(gestational_age ~ center, data=data_age, col="orange", border="brown")
+premature<- c()
+premature_ratio<- c()
+for (i in unique(data_age$center)){
+   pre <- sum(data_age[data_age$center == i, ]$gestational_age <37)
+   premature<- c(premature, pre)
+   pre_ratio<- pre/sum(data_age$center == i)
+   premature_ratio<- c(premature_ratio, pre_ratio)
+}
+
+data.frame(ratio= premature_ratio, center= unique(data_age$center))
+
+c15<- data_age %>% filter(center == 15)
+qplot(x = dde, y = gestational_age, data = c15, color = race, geom= c("point", "line"))
+
+c37<- data_age %>% filter(center == 37)
+qplot(x = dde, y = gestational_age, data = c37, color = race, geom= c("point", "line"))
+
+c10<- data_age %>% filter(center == 10)
+qplot(x = dde, y = gestational_age, data = c10, color = race, geom= c("point", "line"))
+
+ggplot(data_age, aes(gestational_age, fill = race)) + geom_density(alpha = 0.5)
+
+table(data_age$center, data_age$race)
+table(data_age$maternal_age, data_age$race) ## unbalanced number between white and black if the maternal age is <20
+table(data_age$maternal_age, data_age$center) ### center 5 and 66 have more older mother
+
+boxplot(gestational_age ~ smoking_status, data=data_age, col="orange", border="brown") ### might have a little difference
+
+
+```
+
+```{r}
+full.lm<- lm(gestational_age ~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + pcb_118 + pcb_153+ pcb_170 + pcb_138 + pcb_180 + pcb_194 + pcb_203 + triglycerides + race + maternal_age + smoking_status + cholesterol + center, data = data_age)
+
+summary(full.lm)
+plot(full.lm, ask=F)
+outlierTest(full.lm)
+
+stepAIC(full.lm, direction="both")
+
+full.lm2<- lm(formula = gestational_age ~ dde + pcb_074 + pcb_118 + pcb_170 + pcb_138 + pcb_194 + triglycerides + race + cholesterol, data = data_age)
+summary(full.lm2)
+```
