@@ -8,7 +8,8 @@ library(ggplot2)
 library(dplyr)
 library(MASS)
 library(ggpubr)
-Longnecker <- readRDS("C:/Users/XJ/Desktop/case-study-1-team-7/Longnecker.rds")
+library(monomvn)
+Longnecker <- readRDS("Longnecker.rds")
 head(Longnecker)
 ```
 
@@ -107,7 +108,7 @@ table(data_age$maternal_age, data_age$center) ### center 5 and 66 have more olde
 
 boxplot(gestational_age ~ smoking_status, data=data_age, col="orange", border="brown") ### might have a little difference
 
-
+cor(Longnecker$score_education, Longnecker$gestational_age)
 ```
 
 ```{r}
@@ -121,4 +122,29 @@ stepAIC(full.lm, direction="both")
 
 full.lm2<- lm(formula = gestational_age ~ dde + pcb_074 + pcb_118 + pcb_170 + pcb_138 + pcb_194 + triglycerides + race + cholesterol, data = data_age)
 summary(full.lm2)
+```
+
+```{r}
+data_age_na<- data_age[-which(is.na(data_age$pcb_028)), ]
+
+full.lm<- lm(gestational_age ~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + pcb_118 + pcb_153+ pcb_170 + pcb_138 + pcb_180 + pcb_194 + pcb_203 + race + triglycerides + cholesterol+ maternal_age + smoking_status + center + race*dde  + race*triglycerides + race*cholesterol+ race*maternal_age + race*smoking_status + center, data = data_age_na)
+
+#summary(full.lm)
+#plot(full.lm, ask=F)
+#outlierTest(full.lm)
+
+#stepAIC(full.lm, direction="both")
+X = model.matrix(full.lm)
+Y = data_age_na$gestational_age
+nrow(X); length(Y);
+bhs.fit = bhs(X[,-1], Y, T=10000, normalize=T)
+
+beta.sim = bhs.fit$beta
+colnames(beta.sim) = colnames(X)[-1]
+quant5 = function(x) {round(quantile(x, c(0.025, 0.5, 0.975)),2)} ## 95% CI
+quant10 = function(x) {round(quantile(x, c(0.05, 0.5, 0.95)),2)} ## 90% CI
+
+apply(beta.sim, 2, quant5)
+apply(beta.sim, 2, quant10)
+### Not sure why mean is always 0
 ```
