@@ -33,6 +33,6 @@ data_lm[data_lm$gestational_age > 46, "gestational_age"] <- 46 # Truncate at age
 lm_fit <- lm(log(gestational_age) ~ . - 1, data = data_lm)
 
 # Surprisingly R-squared must be taken with a LOT OF GRAIN OF SALT
-# More interesting question will be: Why such a drastic improvement when log-transformed???
+# More interesting question will be: Why such a drastic improvement???
 # PCA might actually be a good way to answer the research question here
 
