@@ -29,10 +29,11 @@ data_lm <- cbind.data.frame(
       X[,!grepl("pcb", colnames(X))], # Exclude all PCB's 
       pc1 = X[,-1] %*% prX$rotation[,1], # First Principal component
       center = as.factor(Longnecker$center[miss_indices]))
+data_lm <- data_lm[,-2] # "Intercept" column; purely a legacy
 data_lm[data_lm$gestational_age > 46, "gestational_age"] <- 46 # Truncate at age == 46
-lm_fit <- lm(log(gestational_age) ~ . - 1, data = data_lm)
+lm_fit <- lm(gestational_age ~ ., data = data_lm)
 
-# Surprisingly R-squared must be taken with a LOT OF GRAIN OF SALT
-# More interesting question will be: Why such a drastic improvement???
-# PCA might actually be a good way to answer the research question here
-
+# Let's try same models with this strategy
+# E.g., yunran's linear mixed effects model
+library(lme4)
+lmer(gestational_age ~ .)
