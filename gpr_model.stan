@@ -43,6 +43,7 @@ model {
   for (p in 1:P) {
     beta[p] ~ normal(0, 1);
   }
+  beta_pcb_between ~ normal(0, 1);
   sigma ~ cauchy(0, 1);
   sigma_pcb ~ normal(0, 1);
   tau ~ normal(0, 1);
