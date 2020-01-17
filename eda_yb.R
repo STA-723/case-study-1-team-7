@@ -31,9 +31,6 @@ data_lm <- cbind.data.frame(
       center = as.factor(Longnecker$center[miss_indices]))
 data_lm <- data_lm[,-2] # "Intercept" column; purely a legacy
 data_lm[data_lm$gestational_age > 46, "gestational_age"] <- 46 # Truncate at age == 46
-lm_fit <- lm(gestational_age ~ ., data = data_lm)
+lm_fit <- lm(gestational_age ~ . + raceblack * (.-raceother) + 
+               raceother * (.-raceblack) + center * (.), data = data_lm)
 
-# Let's try same models with this strategy
-# E.g., yunran's linear mixed effects model
-library(lme4)
-lmer(gestational_age ~ .)
