@@ -9,8 +9,10 @@ library(dplyr)
 library(MASS)
 library(ggpubr)
 library(monomvn)
-Longnecker <- readRDS("Longnecker.rds")
+Longnecker <- as.data.frame(readRDS("Longnecker.rds"))
 head(Longnecker)
+Longnecker$center<- as.factor(as.character(Longnecker$center))
+data = Longnecker
 ```
 
 ## about 93% missing for albumin, 20% missing for scores
@@ -154,7 +156,9 @@ plot(BMA_coef, ask = F)
 
 ### dde, race, triglycerides
 
-full.lm<- lm(gestational_age ~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + pcb_118 + pcb_153+ pcb_170 + pcb_138 + pcb_180 + pcb_194 + pcb_203 + race + triglycerides + cholesterol+ maternal_age + smoking_status + center + race*dde + race*triglycerides + race*cholesterol+ race*maternal_age + race*smoking_status + center, data = data_age_na)
+full.lm<- lm(gestational_age ~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + pcb_118 + pcb_153+ pcb_170 + pcb_138 + pcb_180 + pcb_194 + pcb_203 + race + triglycerides + cholesterol+ maternal_age + smoking_status + center + race*dde + race*triglycerides + race*cholesterol+ race*maternal_age + race*smoking_status + race*center, data = data_age_na)
+
+### remove those have lots of 0s
 
 full.lm<- lm(gestational_age~ dde + pcb_028 + pcb_074 + pcb_105 + pcb_118 + pcb_153 + pcb_138 + pcb_180 + race + triglycerides + cholesterol+ maternal_age + smoking_status + center + race*dde  + race*triglycerides + race*cholesterol+ race*maternal_age + race*smoking_status + center*race, data = data_age_na)
 
@@ -186,16 +190,22 @@ apply(beta.sim, 2, quant10)
 
 
 ```{r}
-Y = data_age_na
+library(rjags)
+library(R2jags)
+full.lm<- lm(gestational_age ~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + pcb_118 + pcb_153+ pcb_170 + pcb_138 + pcb_180 + pcb_194 + pcb_203 + race + triglycerides + cholesterol+ maternal_age + smoking_status + center + race*dde + race*triglycerides + race*cholesterol+ race*maternal_age + race*smoking_status + center*race, data = data_age_na)
+
+Y = data_age_na$gestational_age
 X0 = model.matrix(full.lm)
 # remove X where the fitted value is NA
 coef(full.lm)[is.na(coef(full.lm))] #EE0.01:labBayer  EE0.03:labBayer EE0.01:labZeneca 
 namesX0 = colnames(X0)
-X0 = X0[,-c(which(namesX0=="EE0.01:labBayer"),
-           which(namesX0=="EE0.03:labBayer"),
-           which(namesX0=="EE0.01:labZeneca"))]
-X1 = dplyr::select(data.frame(X0),starts_with("lab"))
-X2 = dplyr::select(data.frame(X0),-starts_with("lab"))[,-1]
+X0 = X0[,-c(which(namesX0=="raceblack:center15"),
+           which(namesX0=="raceother:center15"),
+           which(namesX0=="raceother:center45"),
+           which(namesX0=="raceblack:center50"),
+           which(namesX0=="raceother:center82"))]
+X1 = dplyr::select(data.frame(X0),starts_with("center"))
+X2 = dplyr::select(data.frame(X0),-starts_with("center"))[,-1]
 X = as.matrix(cbind(X1,X2))
 model = function(){
   for (i in 1:n){
@@ -210,23 +220,40 @@ model = function(){
   sigma <- sqrt(1/phi)
   
   # beta for lab
-  for (j in 1:p_lab){
+  for (j in 1:p_center){
     lambda[j] ~ dgamma(a/2, a/2)
     beta[j] ~ dnorm(0, phi*phi_L*lambda[j]) # beta for lab starts from second column
   }
   
   # beta for others
-  beta[(p_lab+1):p] ~ dmnorm(rep(0,p-p_lab), phi*tau*SSX2)
+  beta[(p_center+1):p] ~ dmnorm(rep(0,p-p_center), phi*tau*SSX2)
 }
 set.seed(1)
 Xs = scale(X)
 data = list(Y=Y, Xs=Xs, SSX2 = t(Xs[,(ncol(X1)+1):ncol(X)])%*%Xs[,(ncol(X1)+1):ncol(X)],
-            n=length(Y), p_lab=ncol(X1), p=ncol(X), a=9)
+            n=length(Y), p_center=ncol(X1), p=ncol(X), a=9)
 output = jags(data, inits=NULL,
               parameters.to.save=c("alpha","beta","sigma","sigma_L","lambda"),
               model=model, n.iter=1000)
 sim.matrix = output$BUGSoutput$sims.matrix
 
+
+n = length(Y)
+S = diag(c(apply(X,2,function(x) {var(x)})),nrow=ncol(X))
+# Transform back original betas
+beta.sim = sim.matrix[,2:57] %*% (solve(S)^0.5) #beta_s = S^0.5*beta
+#max(abs(beta.sim %*% (S^0.5) - sim.matrix[,2:57])) # Checkings
+# Transform back original alpha
+alphaS.sim = sim.matrix[,1]
+Xbar = apply(X,2,mean)
+alpha.sim = alphaS.sim - beta.sim %*% Xbar
+colnames(alpha.sim) = "(Intercept)"
+colnames(beta.sim) = colnames(X)
+
+quant5 = function(x) {round(quantile(x, c(0.025, 0.5, 0.975)),2)} ## 95% CI
+quant10 = function(x) {round(quantile(x, c(0.05, 0.5, 0.95)),2)} ## 90% CI
+apply(beta.sim, 2, quant5)
+apply(beta.sim, 2, quant10)
 ```
 
 
