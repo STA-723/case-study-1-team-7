@@ -42,3 +42,6 @@ llmm_with_pc <- glmer(early ~ . - gestational_age - center + (1|center),
                       family = binomial, data = Longnecker_complete_pc)
 ## logistic mixed effects model has CONVERGENCE ISSUES; estimates are probably not reliable
 
+# Log transform of response/covariates do not seem to improve the model fit (NOT shown here)
+# 1. IF the association is nonlinear, do we have any tools to model this? (HARD)
+# 2. Is there a systematic (could be heuristic) way to decide which variables are "confounders"? (COULD BE DONE)
