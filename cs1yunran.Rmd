@@ -195,3 +195,43 @@ data_46_noscore%>%group_by(center)%>%summarise(mean=mean(y),count=n(y))%>%ggplot
 data%>%filter(gestational_age>42)%>%nrow()
 ```
 
+
+## try frequentists' lasso
+
+```{r}
+#install.packages("glmnet")
+library("glmnet")
+train.data=data_46_wscore
+x <- model.matrix(y~., train.data)[,-1]
+# Convert the outcome (class) to a numerical variable
+y <- train.data$y
+
+cv.lasso <- cv.glmnet(x, y, alpha = 1)
+plot(cv.lasso)
+# Fit the final model on the training data
+model <- glmnet(x, y, alpha = 1,
+                lambda = cv.lasso$lambda.min)
+# Display regression coefficients
+coef(model)
+#coef(cv.lasso, cv.lasso$lambda.1se)
+#coef(cv.lasso, cv.lasso$lambda.min)
+```
+
+```{r}
+train.data=data_46_wscore
+x <- model.matrix(y~., train.data)[,-1]
+# Convert the outcome (class) to a numerical variable
+y <- ifelse(train.data$y<37,1,0)
+
+cv.lasso <- cv.glmnet(x, y, alpha = 1)
+plot(cv.lasso)
+# Fit the final model on the training data
+model <- glmnet(x, y, alpha = 1,
+                lambda = cv.lasso$lambda.min)
+# Display regression coefficients
+coef(model) 
+
+#coef(cv.lasso, cv.lasso$lambda.1se)
+coef(cv.lasso, cv.lasso$lambda.min)
+```
+
