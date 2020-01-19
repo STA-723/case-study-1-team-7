@@ -174,3 +174,24 @@ anova(model2,model2_nodde) # dde is not significant; BIC suggest exclude it
 
 
 take away: have to do variable selection! or else the result is not robust.
+
+PCA visulization
+
+```{r}
+data_wscore.pca <- prcomp(data_46_wscore[,-22]%>%mutate(race=as.numeric(race),center=as.numeric(center)), center = TRUE,scale. = TRUE)
+ggbiplot(data_wscore.pca,labels="")
+
+data_noscore.pca <- prcomp(data_46_noscore[,-19]%>%mutate(race=as.numeric(race),center=as.numeric(center)), center = TRUE,scale. = TRUE)
+ggbiplot(data_noscore.pca,labels="")
+
+data_noscore.pca_ <- prcomp(data_46_noscore[,1:12], center = TRUE,scale. = TRUE)
+ggbiplot(data_noscore.pca_,labels="")
+
+```
+
+
+```{r}
+data_46_noscore%>%group_by(center)%>%summarise(mean=mean(y),count=n(y))%>%ggplot(aes(x=count,y=mean))+geom_point()
+data%>%filter(gestational_age>42)%>%nrow()
+```
+
