@@ -223,15 +223,15 @@ x <- model.matrix(y~., train.data)[,-1]
 # Convert the outcome (class) to a numerical variable
 y <- ifelse(train.data$y<37,1,0)
 
-cv.lasso <- cv.glmnet(x, y, alpha = 1)
+cv.lasso <- cv.glmnet(x, y, alpha = 1,family="binomial")
 plot(cv.lasso)
 # Fit the final model on the training data
-model <- glmnet(x, y, alpha = 1,
+model <- glmnet(x, y, alpha = 1,family="binomial",
                 lambda = cv.lasso$lambda.min)
 # Display regression coefficients
 coef(model) 
 
 #coef(cv.lasso, cv.lasso$lambda.1se)
-coef(cv.lasso, cv.lasso$lambda.min)
+#coef(cv.lasso, cv.lasso$lambda.min)
 ```
 
