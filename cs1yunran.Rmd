@@ -174,3 +174,64 @@ anova(model2,model2_nodde) # dde is not significant; BIC suggest exclude it
 
 
 take away: have to do variable selection! or else the result is not robust.
+
+PCA visulization
+
+```{r}
+data_wscore.pca <- prcomp(data_46_wscore[,-22]%>%mutate(race=as.numeric(race),center=as.numeric(center)), center = TRUE,scale. = TRUE)
+ggbiplot(data_wscore.pca,labels="")
+
+data_noscore.pca <- prcomp(data_46_noscore[,-19]%>%mutate(race=as.numeric(race),center=as.numeric(center)), center = TRUE,scale. = TRUE)
+ggbiplot(data_noscore.pca,labels="")
+
+data_noscore.pca_ <- prcomp(data_46_noscore[,1:12], center = TRUE,scale. = TRUE)
+ggbiplot(data_noscore.pca_,labels="")
+
+```
+
+
+```{r}
+data_46_noscore%>%group_by(center)%>%summarise(mean=mean(y),count=n(y))%>%ggplot(aes(x=count,y=mean))+geom_point()
+data%>%filter(gestational_age>42)%>%nrow()
+```
+
+
+## try frequentists' lasso
+
+```{r}
+#install.packages("glmnet")
+library("glmnet")
+train.data=data_46_wscore
+x <- model.matrix(y~., train.data)[,-1]
+# Convert the outcome (class) to a numerical variable
+y <- train.data$y
+
+cv.lasso <- cv.glmnet(x, y, alpha = 1)
+plot(cv.lasso)
+# Fit the final model on the training data
+model <- glmnet(x, y, alpha = 1,
+                lambda = cv.lasso$lambda.min)
+# Display regression coefficients
+coef(model)
+#coef(cv.lasso, cv.lasso$lambda.1se)
+#coef(cv.lasso, cv.lasso$lambda.min)
+```
+
+```{r}
+train.data=data_46_wscore
+x <- model.matrix(y~., train.data)[,-1]
+# Convert the outcome (class) to a numerical variable
+y <- ifelse(train.data$y<37,1,0)
+
+cv.lasso <- cv.glmnet(x, y, alpha = 1,family="binomial")
+plot(cv.lasso)
+# Fit the final model on the training data
+model <- glmnet(x, y, alpha = 1,family="binomial",
+                lambda = cv.lasso$lambda.min)
+# Display regression coefficients
+coef(model) 
+
+#coef(cv.lasso, cv.lasso$lambda.1se)
+#coef(cv.lasso, cv.lasso$lambda.min)
+```
+
