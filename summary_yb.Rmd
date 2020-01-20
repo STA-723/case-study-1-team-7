@@ -74,11 +74,15 @@ Longnecker_complete_pc <- cbind.data.frame(Longnecker_complete[,!grepl("pcb", co
                                            PC1 = PC1_pcb)
 ```
 
-Hence we can fit both ordinary and logistic regression models as follows.
+Hence we can fit both ordinary and logistic regression models as follows. This model retains the multicollinearity problem between DDE and PCB levels, as seen if we apply a nested-model $F$-test. There can be a confounder problem that may need to be accounted for in the form of a prior: e.g., DDE and different PCB chemicals can share a common underlying chemical structure, etc.
 
 ```{r}
 # 1. Regression
 lm_with_pc <- lm(gestational_age ~ ., data = Longnecker_complete_pc)
+
+# F-test: If one (dde) is included, the other may not be significant
+anova(update(lm_with_pc, . ~ . -dde + dde))
+anova(update(lm_with_pc, . ~ . -dde - PC1 + dde + PC1))
 
 # 2. Logistic regression 
 Longnecker_complete_pc$early <- (Longnecker_complete_pc$gestational_age < 37)
@@ -90,18 +94,28 @@ We may summarise in a table the coefficients corresponding to `dde`, the DDE lev
 lm_coefs <- c( coef(lm_with_pc)[c("dde", "PC1")],
    "center5" = as.numeric(coef(lm_with_pc)[1]),
    coef(lm_with_pc)[1] + coef(lm_with_pc)[ grepl("center", names(coef(lm_with_pc))) ] )
+lm_confint <- rbind(confint(lm_with_pc)[c("dde", "PC1"),],
+                    "center5" = confint(lm_with_pc)[1,],
+                    confint(lm_with_pc)[1,] + 
+                      confint(lm_with_pc)[grepl("center", rownames(confint(lm_with_pc))),] )
+lm_coefs <- cbind.data.frame(Mean = lm_coefs, lm_confint)
 
 llm_coefs <- c( coef(llm_with_pc)[c("dde", "PC1")],
    "center5" = as.numeric(coef(llm_with_pc)[1]),
    coef(llm_with_pc)[1] + coef(llm_with_pc)[ grepl("center", names(coef(llm_with_pc))) ] )
+llm_confint <- rbind(confint(llm_with_pc)[c("dde", "PC1"),],
+                    "center5" = confint(llm_with_pc)[1,],
+                    confint(llm_with_pc)[1,] + 
+                      confint(llm_with_pc)[grepl("center", rownames(confint(llm_with_pc))),] )
+llm_coefs <- cbind.data.frame(Mean = llm_coefs, llm_confint)
 
-coefs_for_table <- cbind.data.frame(gaussian = lm_coefs, logistic = llm_coefs)
-knitr::kable(coefs_for_table, format = "latex")
+knitr::kable(lm_coefs, format = "latex", caption = "Estimates for Normal regression", digits = 3)
+knitr::kable(llm_coefs, format = "latex", caption = "Estimates for Logistic regression", digits = 3)
 ```
 
 For DDE, the above table tells us that an additional 1ug exposure to this chemical leads to a $|-0.006 \times 7| \approx .04$-day earlier delivery, adjusted for other variables; for a mother in the dataset with median DDE exposure level, this indicates barely a day earlier delivery compared to no exposure and in otherwise identical conditions.
 
-The logistic model, on the other hand, tells us that an additional 1ug exposure to DDE leads to about $0.9$-increase in the log odds of the probability of delivering a baby prematurely. 
+The logistic model, on the other hand, tells us that an additional 1ug exposure to DDE leads to about $0.009$-increase in the log odds of the probability of delivering a baby prematurely. By the properties of the logistic curve, we may think of this coefficient divided by 4 as the upper bound for an increase in probability of premature delivery for 1ug additional exposure (adjusted for other predictors). For DDE levels, that additional increase in probability is no more than `r round(25*llm_coefs["dde","Mean"], 1)`\%.
 
 ### iii. Heterogeneity between centers
 Models above fit a fixed effects model for `center` variable, so that each center has a mean shift in the gestational age, and each of these intercepts is estimated from the sample in that center only. This does not induce any pooling between the different mean gestional ages across centers; alternatively, random effects model, or equivalently a Bayesian hierarchical regression, induces pooling.
