@@ -195,7 +195,7 @@ binnedplot(fitted(llm_with_pc),
   - Bayesian Model Averaging
   - Horseshoe Prior
   - Hierarchical Prior
-  - Lasso
+  - Lasso (Gaussian: dde, pcb_028, 074, 153; Logistic: dde, pcb_074, 153) -> 'consistent' with the previous model
   
 ```{r, cache=T,echo=F}
 load("./HP_pcb.rdata")
@@ -219,7 +219,7 @@ ggplot(as.data.frame(pcb_fit), aes(rownames(pcb_fit),
 ```
 
 
-```{r, cache=T,echo=F}
+```{r lasso, cache=T,echo=F}
 library("glmnet")
 data=readRDS("Longnecker.rds")
 data=data%>%dplyr::select(gestational_age,dde:cholesterol,center)
@@ -250,11 +250,29 @@ model2 <- glmnet(x, y, alpha = 1,family="binomial",
 
 plot(cv.lasso1) # normal
 plot(cv.lasso2) # logistic
-```
-
-```{r}
 
 coef(model1) # dde, pcb_028, 074, 153
 coef(model2) # dde, pcb_074, 153
+```
+
+```{r vs, cache=T,echo=F}
+model_n0=lm(y~.-dde-pcb_028-pcb_052-pcb_074-pcb_105-pcb_118-pcb_153-pcb_170-pcb_138-pcb_180-pcb_194-pcb_203,data=data_46_wscore)
+model_ndde=lm(y~.-pcb_028-pcb_052-pcb_074-pcb_105-pcb_118-pcb_153-pcb_170-pcb_138-pcb_180-pcb_194-pcb_203,data=data_46_wscore)
+model_npcbs=lm(y~.-dde-pcb_052-pcb_105-pcb_118-pcb_170-pcb_138-pcb_180-pcb_194-pcb_203,data=data_46_wscore)
+data_46_wscore37=data_46_wscore
+data_46_wscore37$y=ifelse(data_46_wscore37$y<37,1,0)
+model_l0=glm(y~.-dde-pcb_028-pcb_052-pcb_074-pcb_105-pcb_118-pcb_153-pcb_170-pcb_138-pcb_180-pcb_194-pcb_203,data=data_46_wscore37,family = "binomial")
+model_ldde=glm(y~.-pcb_028-pcb_052-pcb_074-pcb_105-pcb_118-pcb_153-pcb_170-pcb_138-pcb_180-pcb_194-pcb_203,data=data_46_wscore37,family = "binomial")
+model_lpcbs=glm(y~.-dde-pcb_052-pcb_105-pcb_118-pcb_170-pcb_138-pcb_180-pcb_194-pcb_203,data=data_46_wscore37,family = "binomial")
+anova(model_n0,model_ndde)
+anova(model_n0,model_npcbs)
+anova(model_l0,model_ldde)
+anova(model_l0,model_lpcbs)
+summary(model_ndde)
+summary(model_npcbs)
+summary(model_ldde)
+summary(model_ldde)
+#coef(model1) # dde, pcb_028, 074, 153
+#coef(model2) # dde, pcb_074, 153
 ```
 
