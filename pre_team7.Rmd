@@ -18,12 +18,27 @@ slides > slide {
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 library(arm)
+library(ggplot2)
+library(dplyr)
+library(MASS)
+library(ggpubr)
+library(monomvn)
+library(BAS)
+library(R2jags)
+library(ggmosaic)
 ```
 
 ## EDA
 
 ```{r EDA}
-ggplot(data = data_age) +
+Longnecker <- readRDS("./Longnecker.rds")
+Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
+Longnecker$center <- as.factor(Longnecker$center) # Factorize center
+Longnecker[Longnecker$gestational_age > 46, "gestational_age"] <- 46 # Truncate at age == 46
+data = Longnecker
+data_age_na<- data[-which(is.na(data$pcb_028)), ]
+
+ggplot(data = data_age_na) +
    geom_mosaic(aes(x = product(race, center), fill=race), na.rm=TRUE)+
   labs(x = "Center ID", y = "Race", title='Race by center')
 ```
