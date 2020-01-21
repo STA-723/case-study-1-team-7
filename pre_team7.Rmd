@@ -21,9 +21,120 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ## EDA
 
+```{r EDA}
+ggplot(data = data_age) +
+   geom_mosaic(aes(x = product(race, center), fill=race), na.rm=TRUE)+
+  labs(x = "Center ID", y = "Race", title='Race by center')
+```
+
 ## Challenges
 
 ## Model
+
+```{r}
+full.lm<- lm(gestational_age ~ dde + pcb_028 + pcb_074 + pcb_105 + pcb_118 + pcb_153+ pcb_138 + pcb_180 + race + triglycerides + cholesterol+ maternal_age + smoking_status + center, data = data_age_na)
+
+Y = data_age_na$gestational_age
+X0 = model.matrix(full.lm)
+# remove X where the fitted value is NA
+coef(full.lm)[is.na(coef(full.lm))] 
+namesX0 = colnames(X0)
+
+X1 = dplyr::select(data.frame(X0),starts_with("center"))
+X2 = dplyr::select(data.frame(X0),-starts_with("center"))[,-1]
+X = as.matrix(cbind(X1,X2))
+model = function(){
+  for (i in 1:n){
+    Y[i] ~ dnorm(alpha + Xs[i,] %*% beta, phi)
+  }
+  
+  alpha ~ dnorm(0, .000001*phi)
+  phi ~ dgamma(.001, .001)
+  sigma_L ~ dt(0,1,1)
+  phi_L <- 1/((sigma_L^2)+.000001)
+  tau ~ dgamma(.5, .5*n)
+  sigma <- sqrt(1/phi)
+  
+  # beta for lab
+  for (j in 1:p_center){
+    lambda[j] ~ dgamma(a/2, a/2)
+    beta[j] ~ dnorm(0, phi*phi_L*lambda[j]) # beta for lab starts from second column
+  }
+  
+  # beta for others
+  beta[(p_center+1):p] ~ dmnorm(rep(0,p-p_center), phi*tau*SSX2)
+}
+set.seed(1)
+Xs = scale(X)
+data = list(Y=Y, Xs=Xs, SSX2 = t(Xs[,(ncol(X1)+1):ncol(X)])%*%Xs[,(ncol(X1)+1):ncol(X)],
+            n=length(Y), p_center=ncol(X1), p=ncol(X), a=9)
+output = jags(data, inits=NULL,
+              parameters.to.save=c("alpha","beta","sigma","sigma_L","lambda"),
+              model=model, n.iter=10000)
+sim.matrix = output$BUGSoutput$sims.matrix
+
+
+n = length(Y)
+S = diag(c(apply(X,2,function(x) {var(x)})),nrow=ncol(X))
+# Transform back original betas
+beta.sim = sim.matrix[,2:26] %*% (solve(S)^0.5) #beta_s = S^0.5*beta
+#max(abs(beta.sim %*% (S^0.5) - sim.matrix[,2:57])) # Checkings
+# Transform back original alpha
+alphaS.sim = sim.matrix[,1]
+Xbar = apply(X,2,mean)
+alpha.sim = alphaS.sim - beta.sim %*% Xbar
+colnames(alpha.sim) = "(Intercept)"
+colnames(beta.sim) = colnames(X)
+
+quant5 = function(x) {round(quantile(x, c(0.025, 0.5, 0.975)),2)} ## 95% CI
+quant10 = function(x) {round(quantile(x, c(0.05, 0.5, 0.95)),2)} ## 90% CI
+apply(beta.sim, 2, quant5)
+apply(beta.sim, 2, quant10)
+
+gelman.diag(as.mcmc(output))
+### mixing is pretty good
+```
+
+```{r}
+center = dplyr::select(data.frame(beta.sim),starts_with("center"))
+center_fit<- cbind(lwr= apply(center, 2, quant5)[1,], fit= apply(center, 2, quant5)[2,], upr=apply(center, 2, quant5)[3,])
+
+ggplot(as.data.frame(center_fit), aes(rownames(center_fit), 
+  fit, size=10, group=1, ylim=max(upr)+0.8)) +
+  theme_bw(base_size=10)+ 
+  geom_point(size=2)+
+  geom_line(size=1)+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.2, size=1)+
+  xlab("Lab")+
+  ylab("Fitted value")+
+  ggtitle("Gestational Age acorss centers with ref=5 (JAGS)")+
+  theme(axis.text.x=element_blank())+
+  geom_text(aes(label = round(lwr,2), y = lwr), vjust = 1.5, size=3) +
+  geom_text(aes(label = round(upr,2), y = upr), vjust = -0.5, size=3) +
+  geom_text(aes(label = rownames(center_fit), y = upr+0.5), vjust = -0.5, size=3, col="blue")
+
+
+pcb = dplyr::select(data.frame(beta.sim),starts_with("pcb_"))
+pcb_fit<- cbind(lwr= apply(pcb, 2, quant5)[1,], fit= apply(pcb, 2, quant5)[2,], upr=apply(pcb, 2, quant5)[3,])
+
+ggplot(as.data.frame(pcb_fit), aes(rownames(pcb_fit), 
+  fit, size=10, group=1, ylim=max(upr)+0.8)) +
+  theme_bw(base_size=10)+ 
+  geom_point(size=2)+
+  geom_line(size=1)+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.2, size=1)+
+  xlab("Lab")+
+  ylab("Fitted value")+
+  ggtitle("Gestational Age acorss (JAGS)")+
+  theme(axis.text.x=element_blank())+
+  geom_text(aes(label = round(lwr,2), y = lwr), vjust = 1.5, size=3) +
+  geom_text(aes(label = round(upr,2), y = upr), vjust = -0.5, size=3) +
+  geom_text(aes(label = rownames(pcb_fit), y = upr+0.5), vjust = -0.5, size=3, col="blue")
+
+### center 10 31 45 higher than center 5; center 15 37 82 lower than center 5
+### pcbs all cover 0, but 105, 028 higher, and 074 lower
+```
+
 
 ## Result
 
