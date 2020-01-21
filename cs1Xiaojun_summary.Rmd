@@ -14,6 +14,7 @@ library(ggpubr)
 library(monomvn)
 library(BAS)
 library(R2jags)
+library(ggmosaic)
 Longnecker <- as.data.frame(readRDS("Longnecker.rds"))
 head(Longnecker)
 Longnecker$center<- as.factor(as.character(Longnecker$center))
@@ -51,6 +52,13 @@ ggplot(data_age, aes(gestational_age, fill = race)) + geom_density(alpha = 0.5)
 table(data_age$center, data_age$race)
 table(data_age$maternal_age, data_age$race) ## unbalanced number between white and black if the maternal age is <20
 table(data_age$maternal_age, data_age$center) ### center 5 and 66 have more older mother
+```
+
+```{r}
+ggplot(data = data_age) +
+   geom_mosaic(aes(x = product(race, center), fill=race), na.rm=TRUE)+
+  labs(x = "Center ID", y = "Race", title='Race by center')
+
 ```
 
 ### Bayesian Model Averaging
