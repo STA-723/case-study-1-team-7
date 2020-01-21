@@ -32,6 +32,9 @@ ggplot(data = data_age) +
 ## Model
 
 ```{r}
+data = Longnecker
+data_age_na<- data[-which(is.na(data$pcb_028)), ]
+
 full.lm<- lm(gestational_age ~ dde + pcb_028 + pcb_074 + pcb_105 + pcb_118 + pcb_153+ pcb_138 + pcb_180 + race + triglycerides + cholesterol+ maternal_age + smoking_status + center, data = data_age_na)
 
 Y = data_age_na$gestational_age
