@@ -183,6 +183,9 @@ binnedplot(fitted(llm_with_pc),
 ```
 
 
+
+
+
 # Discussion
 
 ## Dealing with PCBs (multilinearity)
@@ -215,6 +218,33 @@ ggplot(as.data.frame(pcb_fit), aes(rownames(pcb_fit),
   geom_text(aes(label = rownames(pcb_fit), y = upr+0.5), vjust = -0.5, size=3, col="blue")
 ```
 
+### Bayesian perspective
+
+### Bayesian Modeling Averaging
+
+### Horseshoe Prior
+
+### Hierarchical Prior
+```{r}
+load("./HP_pcb.rdata")
+quant5 = function(x) {round(quantile(x, c(0.025, 0.5, 0.975)),2)} ## 95% CI
+pcb = dplyr::select(data.frame(beta.sim),starts_with("pcb_"))
+pcb_fit<- cbind(lwr= apply(pcb, 2, quant5)[1,], fit= apply(pcb, 2, quant5)[2,], upr=apply(pcb, 2, quant5)[3,])
+
+ggplot(as.data.frame(pcb_fit), aes(rownames(pcb_fit), 
+  fit, size=10, group=1, ylim=max(upr)+0.8)) +
+  theme_bw(base_size=10)+ 
+  geom_point(size=2)+
+  geom_line(size=1)+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.2, size=1)+
+  xlab("Lab")+
+  ylab("Fitted value")+
+  ggtitle("Gestational Age acorss (JAGS)")+
+  theme(axis.text.x=element_blank())+
+  geom_text(aes(label = round(lwr,2), y = lwr), vjust = 1.5, size=3) +
+  geom_text(aes(label = round(upr,2), y = upr), vjust = -0.5, size=3) +
+  geom_text(aes(label = rownames(pcb_fit), y = upr+0.5), vjust = -0.5, size=3, col="blue")
+```
 
 ```{r, cache=T,echo=F}
 library("glmnet")
