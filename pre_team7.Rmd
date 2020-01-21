@@ -1,5 +1,5 @@
 ---
-title: ""
+title: "Case Study 1: National Collaborative Perinatal Project"
 author: "Youngsoo Baek, YunranChen and Xiaojun Zheng"
 date: "1/20/2020"
 output: 
@@ -15,22 +15,79 @@ slides > slide {
 }
 </style>
 
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 library(arm)
+library(corrplot)
+library(naniar)
 library(ggplot2)
 library(dplyr)
+library(tibble)
+library(tidyr)
+library(purrr)
+library(lme4)
 library(MASS)
-library(ggpubr)
-library(monomvn)
-library(BAS)
-library(R2jags)
+#library(ggpubr)
+#library(monomvn)
+#library(BAS)
+#library(R2jags)
 library(ggmosaic)
+data=readRDS("Longnecker.rds")
+data=data%>%dplyr::select(gestational_age,dde:cholesterol,center)
 ```
 
-## EDA
+# EDA
 
-```{r EDA}
+## EDA: Missing Data
+
+- Over 90% missing `albumin`, around 20% missing `score_*`, others less than 0.1%
+- Drop the `albumin` and keep the complete cases
+
+```{r missing, echo=FALSE, message=FALSE, warning=FALSE,cache=TRUE}
+gg_miss_upset(data)
+```
+
+## EDA: Correlation Plot
+
+- Weak correlation between covariates and `gestational age`
+- Large correlation among covariates especially for PCBs
+
+```{r corrplot, echo=FALSE,cache=TRUE}
+data_=data%>%mutate(race=as.numeric(race))
+M2=cor(as.matrix(na.omit(data_)))
+corrplot.mixed(M2,number.cex=.5, upper="ellipse")
+```
+
+## EDA: Histogram for All Variables
+
+- 0-inflation on some of PCBs
+- Long left tail of `gestational age` (after truncated at 46)
+
+```{r hist, echo=FALSE, message=FALSE, warning=FALSE,cache=TRUE}
+data_46=data_#%>%mutate(y=gestational_age)
+data_46[data_46$gestational_age>46,"gestational_age"]=46
+data_46=data_46%>%select(-albumin)%>%mutate(race=factor(race),center=factor(center))
+
+data_46 %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_histogram()
+```
+
+## EDA: Heterogeneity across Centers
+
+The demographic background of each center varies a lot, suggesting heterogeity across centers.
+(favor fixed effect instead of random effect)
+
+```{r heter, echo=FALSE, cache=TRUE}
+ggplot(data_46,mapping = aes(x=as.factor(center),y=gestational_age,color=race))+geom_boxplot()+theme_bw()
+ggplot(data_46,mapping = aes(x=as.factor(center),y=score_income,color=race))+geom_boxplot()+theme_bw()
+```
+
+```{r EDA, echo=FALSE, cache=TRUE}
 Longnecker <- readRDS("./Longnecker.rds")
 Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
 Longnecker$center <- as.factor(Longnecker$center) # Factorize center
@@ -40,7 +97,7 @@ data_age_na<- data[-which(is.na(data$pcb_028)), ]
 
 ggplot(data = data_age_na) +
    geom_mosaic(aes(x = product(race, center), fill=race), na.rm=TRUE)+
-  labs(x = "Center ID", y = "Race", title='Race by center')
+  labs(x = "Center ID", y = "Race", title='Race by center') + theme_bw()
 ```
 
 ## Challenges
@@ -51,9 +108,22 @@ ggplot(data = data_age_na) +
   
   * Modeling Heterogeneity between centers
 
+# Modeling
+
+## Models
+
+Goal: 
+
+$$
+\begin{aligned}
+\text{Null model:}\quad\text{gestational age} \sim 1 + \text{...} \\
+\text{Alternative:}\quad\text{gestational age} \sim 1 + DDE + \text{...}
+\end{aligned}
+$$
+
 ## Regression estimates
 
-```{r, echo=F, include=T}
+```{r, echo=F, include=T,cache=T}
 # Boilerplate
 Longnecker <- readRDS("./Longnecker.rds")
 Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
@@ -88,12 +158,12 @@ llm_coefs <- cbind.data.frame(Mean = llm_coefs, llm_confint)
 ```
 
 95\% confidence interval for Gaussian regression:
-```{r, echo=F, include=T}
+```{r, echo=F, include=T, cache=T}
 round(lm_coefs[c("dde", "PC1"),], 3)
 ```
 
 For logistic regression:
-```{r, echo=F, include=T}
+```{r, echo=F, include=T,cache=T}
 round(llm_coefs[c("dde", "PC1"),], 3)
 ```
 
@@ -101,7 +171,7 @@ round(llm_coefs[c("dde", "PC1"),], 3)
 
 ## Diagnostic Plots
 
-```{r, echo=F, include=T}
+```{r, echo=F, include=T,cache=T}
 par(mfrow = c(1, 2))
 plot(lm_with_pc, 1, main = "Gaussian regression")
 binnedplot(fitted(llm_with_pc),
@@ -111,6 +181,23 @@ binnedplot(fitted(llm_with_pc),
            main = "Logistic regression (43 bins)")
 ```
 
+
+
+
+
+# Discussion
+
+## Dealing with PCBs
+
+Two ways to consider the 
+
+### Bayesian perspective
+
+### Bayesian Modeling Averaging
+
+### Horseshoe Prior
+
+### Hierarchical Prior
 ```{r}
 load("./HP_pcb.rdata")
 quant5 = function(x) {round(quantile(x, c(0.025, 0.5, 0.975)),2)} ## 95% CI
@@ -133,6 +220,5 @@ ggplot(as.data.frame(pcb_fit), aes(rownames(pcb_fit),
 ```
 
 
-## Result
 
-## Conclusion
+
