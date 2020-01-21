@@ -17,13 +17,80 @@ slides > slide {
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
+library(arm)
 ```
 
 ## EDA
 
+...
+
 ## Challenges
 
-## Model
+  * Noisy measurement
+  
+  * Multicollinearity
+  
+  * Modeling Heterogeneity between centers
+
+## Regression estimates
+
+```{r, echo=F, include=T}
+# Boilerplate
+Longnecker <- readRDS("./Longnecker.rds")
+Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
+Longnecker$center <- as.factor(Longnecker$center) # Factorize center
+Longnecker[Longnecker$gestational_age > 46, "gestational_age"] <- 46 # Truncate at age == 46
+x <- model.matrix(gestational_age ~ . - center, data = Longnecker)
+miss_indices <- as.integer(row.names(x))
+Longnecker_complete <- Longnecker[miss_indices,] # Only those non-missing obs.
+PC1_pcb <- prcomp(x[,grepl("pcb", colnames(x))])$x[,1]
+Longnecker_complete_pc <- cbind.data.frame(
+  Longnecker_complete[,!grepl("pcb", colnames(Longnecker_complete))],
+  PC1 = PC1_pcb)
+lm_with_pc <- lm(gestational_age ~ ., data = Longnecker_complete_pc)
+Longnecker_complete_pc$early <- (Longnecker_complete_pc$gestational_age < 37)
+llm_with_pc <- glm(early ~ . - gestational_age, family = binomial, data = Longnecker_complete_pc)
+lm_coefs <- c( coef(lm_with_pc)[c("dde", "PC1")],
+   "center5" = as.numeric(coef(lm_with_pc)[1]),
+   coef(lm_with_pc)[1] + coef(lm_with_pc)[ grepl("center", names(coef(lm_with_pc))) ] )
+lm_confint <- rbind(confint(lm_with_pc)[c("dde", "PC1"),],
+                    "center5" = confint(lm_with_pc)[1,],
+                    confint(lm_with_pc)[1,] + 
+                      confint(lm_with_pc)[grepl("center", rownames(confint(lm_with_pc))),] )
+llm_coefs <- c( coef(llm_with_pc)[c("dde", "PC1")],
+   "center5" = as.numeric(coef(llm_with_pc)[1]),
+   coef(llm_with_pc)[1] + coef(llm_with_pc)[ grepl("center", names(coef(llm_with_pc))) ] )
+suppressMessages(llm_confint <- rbind(confint(llm_with_pc)[c("dde", "PC1"),],
+                    "center5" = confint(llm_with_pc)[1,],
+                    confint(llm_with_pc)[1,] + 
+                      confint(llm_with_pc)[grepl("center", rownames(confint(llm_with_pc))),] ) )
+lm_coefs <- cbind.data.frame(Mean = lm_coefs, lm_confint)
+llm_coefs <- cbind.data.frame(Mean = llm_coefs, llm_confint)
+```
+
+95\% confidence interval for Gaussian regression:
+```{r, echo=F, include=T}
+round(lm_coefs[c("dde", "PC1"),], 3)
+```
+
+For logistic regression:
+```{r, echo=F, include=T}
+round(llm_coefs[c("dde", "PC1"),], 3)
+```
+
+  * Hard to see improvement from a "baseline" model (Gaussian)
+
+## Diagnostic Plots
+
+```{r, echo=F, include=T}
+par(mfrow = c(1, 2))
+plot(lm_with_pc, 1, main = "Gaussian regression")
+binnedplot(fitted(llm_with_pc),
+           residuals(llm_with_pc, type = "response"),
+           xlab = "Fitted response",
+           ylab = "Residual",
+           main = "Logistic regression (43 bins)")
+```
 
 ## Result
 
