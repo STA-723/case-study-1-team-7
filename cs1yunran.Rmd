@@ -22,6 +22,7 @@ data=readRDS("Longnecker.rds")
 data=data%>%select(gestational_age,dde:cholesterol,center)
 data #reorder the column, put the gestational_age as the first cols
 summary(data)
+data%>%filter(gestational_age<=42)%>%group_by(center)%>%summarise(y=mean(gestational_age),size=n())%>%ggplot(.,aes(x=size,y=y))+geom_point()
 ```
 
 ## missing data analysis
@@ -170,6 +171,26 @@ model2_nodde=lmer(y~1+.-center-dde+(1|center),data=data_46_wscore)
 BIC(model2_nodde)
 anova(model2,model2_nodde) # dde is not significant; BIC suggest exclude it
 
+model3=lmer(y~1+dde+triglycerides+race+score_education+score_income+score_occupation+smoking_status+(1|center),data=data_46_wscore)
+fix=summary(model3)%>%coef()
+CI= confint(model3)
+cbind(fix,CI[-c(1:2),])
+# not significant; heterogeneity across race exist; (the difference may due the high correlated X's, unrobust!)
+model2_nore=lm(y~1+.-center,data=data_46_wscore)
+X.stat = 2*c(logLik(model2_nore)-logLik(model2))
+p = 0.5*(1-pchisq(X.stat,1)+1-pchisq(X.stat,0))
+p # heterogeneity across center
+plot(model2,resid(.,scaled=TRUE)~fitted(.),abline=0,xlab="Fitted Values",ylab="Standardized Residuals")
+qqnorm(resid(model2))
+qqline(resid(model2))
+BIC(model2)
+model2_nopcb=lmer(y~1+dde+triglycerides+race+maternal_age+smoking_status+cholesterol+score_education+score_income+score_occupation+(1|center),data=data_46_wscore)
+BIC(model2_nopcb)
+anova(model2,model2_nopcb) #pcbs not significant; but BIC increase if include them
+model2_nodde=lmer(y~1+.-center-dde+(1|center),data=data_46_wscore)
+BIC(model2_nodde)
+anova(model2,model2_nodde) 
+
 ```
 
 
@@ -201,6 +222,7 @@ data%>%filter(gestational_age>42)%>%nrow()
 ```{r}
 #install.packages("glmnet")
 library("glmnet")
+set.seed(123)
 train.data=data_46_wscore
 x <- model.matrix(y~., train.data)[,-1]
 # Convert the outcome (class) to a numerical variable
@@ -234,4 +256,17 @@ coef(model)
 #coef(cv.lasso, cv.lasso$lambda.1se)
 #coef(cv.lasso, cv.lasso$lambda.min)
 ```
+
+
+
+EDA
+
+- missing data: 90% albumin. 20% scores. correlation of missing. each hospital have missing --> get the complete cases. whether to include scores or not. 
+- 2 correlation plot: little correlation between each covariate to y. high correlation among covariates -->pca explore; incorporate all the info from pcbs or variable selection --> variable selection
+- 0-inflation: show the hist plot. truncation on y
+
+
+
+
+
 
