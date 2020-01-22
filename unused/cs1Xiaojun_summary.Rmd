@@ -1,0 +1,270 @@
+---
+title: "cs1Xiaojun_summary"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(MASS)
+library(ggpubr)
+library(monomvn)
+library(BAS)
+library(R2jags)
+library(ggmosaic)
+Longnecker <- as.data.frame(readRDS("Longnecker.rds"))
+head(Longnecker)
+Longnecker$center<- as.factor(as.character(Longnecker$center))
+Longnecker$center <- relevel(Longnecker$center, ref = "5")
+Longnecker[Longnecker$gestational_age > 46, "gestational_age"] <- 46 # Truncate at age == 46
+
+# Complete case analysis for missing variables
+x <- model.matrix(gestational_age ~ . - center, data = Longnecker)
+miss_indices <- as.integer(row.names(x))
+Longnecker_complete <- Longnecker[miss_indices,] # Only those non-missing obs.
+data_age_na<- Longnecker_complete
+data_age<- Longnecker_complete
+```
+
+### Some EDA that Yunran did not talk about 
+
+Center ID 5 has the most observations (481) across all centers, and center ID 31 has the fewet observations (78). If we consider 37 weeks or less as premature, then center ID 15 and 37 would have the highest premature rate, which is approximately 25%. We suspect that it might be because the black dominates these centers. However, center ID 45 and 66 also consist of mainly black people, but their premature rate is not as high as the center ID 15 and 37. Thus, we guess that there might be heterogeneity between centers. Also, we observed that there are unbalanced number of white and black if the maternal age is lower than 20, and center ID 5 and 66 have more older mother than the others. Finally, if we look at the density plot for gestational age grouped by race, we can tell that white would have less risk for premature comparing to the black and the other. 
+
+```{r}
+table(data_age$center)
+boxplot(gestational_age ~ center, data=data_age, col="orange", border="brown")
+premature<- c()
+premature_ratio<- c()
+for (i in unique(data_age$center)){
+   pre <- sum(data_age[data_age$center == i, ]$gestational_age <37)
+   premature<- c(premature, pre)
+   pre_ratio<- pre/sum(data_age$center == i)
+   premature_ratio<- c(premature_ratio, pre_ratio)
+}
+
+data.frame(ratio= premature_ratio, center= unique(data_age$center))
+
+ggplot(data_age, aes(gestational_age, fill = race)) + geom_density(alpha = 0.5)
+
+table(data_age$center, data_age$race)
+table(data_age$maternal_age, data_age$race) ## unbalanced number between white and black if the maternal age is <20
+table(data_age$maternal_age, data_age$center) ### center 5 and 66 have more older mother
+```
+
+```{r}
+ggplot(data = data_age) +
+   geom_mosaic(aes(x = product(race, center), fill=race), na.rm=TRUE)+
+  labs(x = "Center ID", y = "Race", title='Race by center')
+
+```
+
+### Bayesian Model Averaging
+
+We first started with a full model with all main effects, and interactions between race and all demographic variables as well as center, and then perform BMA via bas.lm. However, the variables that are included in the best model are only race and triglycerides. Since most main effects do not show any significance associated with gestational age, we decided to remove all interaction terms. Again, no extra covariates appear in the best model. Then we decided to remove some PCBs. On the one hand, PCBs are correlated, and including all of them is not a wise choice. One the other hand, some of the PCBs are zero-inflated, which would be a problem for modeling. Thus, we removed the PCBs which have a bunch of 0s, such as PCB_105, PCB_138, etc.. Even though we used a much simplier model, we still don't see any extra covariates introduced into the best model, so we would like to use other techniques to do model selection, and think about more how to deal with PCBs. 
+
+```{r cache = TRUE}
+age.bas1 = bas.lm(gestational_age~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + pcb_118 + pcb_153+ pcb_170 + pcb_138 + pcb_180 + pcb_194 + pcb_203 + race + triglycerides + cholesterol+ maternal_age + smoking_status + score_education + score_income + score_occupation + center + race*dde  + race*triglycerides + race*cholesterol+ race*maternal_age + race*smoking_status + center*race, data=data_age_na, prior = 'JZS', modelprior=uniform(), method="MCMC", pivot=TRUE, n.models=50000, force.heredity = TRUE)
+
+summary(age.bas1)
+
+age.bas2 = bas.lm(gestational_age~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + pcb_118 + pcb_153+ pcb_170 + pcb_138 + pcb_180 + pcb_194 + pcb_203 + race + triglycerides + cholesterol+ maternal_age + smoking_status + score_education + score_income + score_occupation + center, data=data_age_na, prior = 'JZS', modelprior=uniform(), method="MCMC", pivot=TRUE, n.models=50000, force.heredity = TRUE)
+
+summary(age.bas2)
+
+age.bas3 = bas.lm(gestational_age~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_153+ pcb_138 + pcb_180 + pcb_194 + pcb_203 + race + triglycerides + cholesterol+ maternal_age + smoking_status + score_education + score_income + score_occupation + center, data=data_age_na, prior = 'JZS', modelprior=uniform(), method="MCMC", pivot=TRUE, n.models=50000, force.heredity = TRUE)
+
+summary(age.bas3)
+```
+
+### Horseshoe prior
+
+We applied Horseshoe prior for all the parameters in this problem. The reason is that Horseshoe prior has the following two properties: sparsity and unbiasedness. This allows us to shrink small coefficients towards 0 and meanwhile keeping large coefficients in the model. We adapted the full model with all main effects excluding the PCBs with zero inflation. 
+
+```{r cache=TRUE}
+full.lm<- lm(gestational_age~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_153+ pcb_138 + pcb_180 + pcb_194 + pcb_203 + race + triglycerides + cholesterol+ maternal_age + smoking_status + score_education + score_income + score_occupation + center, data=data_age_na)
+
+X = model.matrix(full.lm)
+Y = data_age_na$gestational_age
+nrow(X); length(Y);
+
+bhs.fit = bhs(X[,-1], Y, T=5000, normalize=T)
+
+beta.sim = bhs.fit$beta
+colnames(beta.sim) = colnames(X)[-1]
+quant5 = function(x) {round(quantile(x, c(0.025, 0.5, 0.975)),2)} ## 95% CI
+
+coefs_for_table<- apply(beta.sim, 2, quant5)
+knitr::kable(coefs_for_table, format = "latex")
+
+center = dplyr::select(data.frame(beta.sim),starts_with("center"))
+center_fit<- cbind(lwr= apply(center, 2, quant5)[1,], fit= apply(center, 2, quant5)[2,], upr=apply(center, 2, quant5)[3,])
+
+ggplot(as.data.frame(center_fit), aes(rownames(center_fit), 
+  fit, size=10, group=1, ylim=max(upr)+0.8)) +
+  theme_bw(base_size=10)+ 
+  geom_point(size=2)+
+  geom_line(size=1)+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.2, size=1)+
+  xlab("Lab")+
+  ylab("Fitted value")+
+  ggtitle("Gestational Age acorss centers with ref=5 (JAGS)")+
+  theme(axis.text.x=element_blank())+
+  geom_text(aes(label = round(lwr,2), y = lwr), vjust = 1.5, size=3) +
+  geom_text(aes(label = round(upr,2), y = upr), vjust = -0.5, size=3) +
+  geom_text(aes(label = rownames(center_fit), y = upr+0.5), vjust = -0.5, size=3, col="blue")
+
+
+pcb = dplyr::select(data.frame(beta.sim),starts_with("pcb_"))
+pcb_fit<- cbind(lwr= apply(pcb, 2, quant5)[1,], fit= apply(pcb, 2, quant5)[2,], upr=apply(pcb, 2, quant5)[3,])
+
+ggplot(as.data.frame(pcb_fit), aes(rownames(pcb_fit), 
+  fit, size=10, group=1, ylim=max(upr)+0.8)) +
+  theme_bw(base_size=10)+ 
+  geom_point(size=2)+
+  geom_line(size=1)+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.2, size=1)+
+  xlab("Lab")+
+  ylab("Fitted value")+
+  ggtitle("Gestational Age acorss (JAGS)")+
+  theme(axis.text.x=element_blank())+
+  geom_text(aes(label = round(lwr,2), y = lwr), vjust = 1.5, size=3) +
+  geom_text(aes(label = round(upr,2), y = upr), vjust = -0.5, size=3) +
+  geom_text(aes(label = rownames(pcb_fit), y = upr+0.5), vjust = -0.5, size=3, col="blue")
+```
+
+### Hierarchical Prior
+
+We used a hierarchical prior for center effects, and would like to determine if the variation between centers are greater than the variation due to the measurement error. Incorporating the insights from STA 721 project, we have $$\beta_c \mid  \sigma^2, \sigma^2_C, \lambda_c \sim N(0, \sigma^2 \sigma^2_C/\lambda_c)$$, where $\sigma^2$ is the within-group variance, and $\sigma^2_C$ is the between-group variance. We used a half-Cauchy prior on $\sigma_L$, and $$\lambda_l \sim G(a/2, a/2)$$. If $a$ is small, then the posterior would be diffuse, and if $a$ is large, then it would not allow for heavier tails than the normal for center effects, which would be a problem if we have any centers as "outliers". Thus, we need to set a $a$ value which is not too large or too small, and a recommended choice for $a$ is $9$ as we learned from STA 721.
+
+Since mixing is easily to be poor for sigma_L, then we removed all score variables, and introduced the observations which are initially removed because of the missing information of score variables. We proposed a model with no interactions, and no PCBs with a bunch of zeros. At the same time, we tried a model which replaced the PCBs with the “total” PCB effect proxy as Youndsoo suggested, but we had a mixing problem for Sigma_L under this model. 
+
+```{r}
+data = Longnecker
+data_age_na<- data[-which(is.na(data$pcb_028)), ]
+```
+
+
+```{r cache=TRUE}
+full.lm<- lm(gestational_age ~ dde + pcb_028 + pcb_074 + pcb_105 + pcb_118 + pcb_153+ pcb_138 + pcb_180 + race + triglycerides + cholesterol+ maternal_age + smoking_status + center, data = data_age_na)
+
+Y = data_age_na$gestational_age
+X0 = model.matrix(full.lm)
+# remove X where the fitted value is NA
+coef(full.lm)[is.na(coef(full.lm))] 
+namesX0 = colnames(X0)
+
+X1 = dplyr::select(data.frame(X0),starts_with("center"))
+X2 = dplyr::select(data.frame(X0),-starts_with("center"))[,-1]
+X = as.matrix(cbind(X1,X2))
+model = function(){
+  for (i in 1:n){
+    Y[i] ~ dnorm(alpha + Xs[i,] %*% beta, phi)
+  }
+  
+  alpha ~ dnorm(0, .000001*phi)
+  phi ~ dgamma(.001, .001)
+  sigma_L ~ dt(0,1,1)
+  phi_L <- 1/((sigma_L^2)+.000001)
+  tau ~ dgamma(.5, .5*n)
+  sigma <- sqrt(1/phi)
+  
+  # beta for lab
+  for (j in 1:p_center){
+    lambda[j] ~ dgamma(a/2, a/2)
+    beta[j] ~ dnorm(0, phi*phi_L*lambda[j]) # beta for lab starts from second column
+  }
+  
+  # beta for others
+  beta[(p_center+1):p] ~ dmnorm(rep(0,p-p_center), phi*tau*SSX2)
+}
+set.seed(1)
+Xs = scale(X)
+data = list(Y=Y, Xs=Xs, SSX2 = t(Xs[,(ncol(X1)+1):ncol(X)])%*%Xs[,(ncol(X1)+1):ncol(X)],
+            n=length(Y), p_center=ncol(X1), p=ncol(X), a=9)
+output = jags(data, inits=NULL,
+              parameters.to.save=c("alpha","beta","sigma","sigma_L","lambda"),
+              model=model, n.iter=10000)
+sim.matrix = output$BUGSoutput$sims.matrix
+
+
+n = length(Y)
+S = diag(c(apply(X,2,function(x) {var(x)})),nrow=ncol(X))
+# Transform back original betas
+beta.sim = sim.matrix[,2:26] %*% (solve(S)^0.5) #beta_s = S^0.5*beta
+#max(abs(beta.sim %*% (S^0.5) - sim.matrix[,2:57])) # Checkings
+# Transform back original alpha
+alphaS.sim = sim.matrix[,1]
+Xbar = apply(X,2,mean)
+alpha.sim = alphaS.sim - beta.sim %*% Xbar
+colnames(alpha.sim) = "(Intercept)"
+colnames(beta.sim) = colnames(X)
+
+quant5 = function(x) {round(quantile(x, c(0.025, 0.5, 0.975)),2)} ## 95% CI
+apply(beta.sim, 2, quant5)
+
+gelman.diag(as.mcmc(output))
+### mixing is pretty good
+```
+
+```{r}
+coefs_for_table<- apply(beta.sim, 2, quant5)
+knitr::kable(t(coefs_for_table), format = "latex")
+
+beta.sim_center<- dplyr::select(data.frame(beta.sim),starts_with("center"))
+
+center_coef<- matrix(nrow=3, ncol=11)
+for (i in 1:3){
+  center_coef[i,]<- apply(alpha.sim, 2, quant5)[i] + apply(beta.sim_center, 2, quant5)[i,]
+}
+colnames(center_coef)<- colnames(beta.sim_center)
+rownames(center_coef)<- c("2.5%", "50%", "97.5")
+center_coef<- as.data.frame(center_coef)
+center_coef$center5<- apply(alpha.sim, 2, quant5)
+coefs_for_table<- t(center_coef)
+coefs_for_table
+knitr::kable(coefs_for_table, format = "latex")
+```
+
+```{r}
+center = dplyr::select(data.frame(beta.sim),starts_with("center"))
+center_fit<- cbind(lwr= apply(center, 2, quant5)[1,], fit= apply(center, 2, quant5)[2,], upr=apply(center, 2, quant5)[3,])
+
+ggplot(as.data.frame(center_fit), aes(rownames(center_fit), 
+  fit, size=10, group=1, ylim=max(upr)+0.8)) +
+  theme_bw(base_size=10)+ 
+  geom_point(size=2)+
+  geom_line(size=1)+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.2, size=1)+
+  xlab("Lab")+
+  ylab("Fitted value")+
+  ggtitle("Gestational Age acorss centers with ref=5 (JAGS)")+
+  theme(axis.text.x=element_blank())+
+  geom_text(aes(label = round(lwr,2), y = lwr), vjust = 1.5, size=3) +
+  geom_text(aes(label = round(upr,2), y = upr), vjust = -0.5, size=3) +
+  geom_text(aes(label = rownames(center_fit), y = upr+0.5), vjust = -0.5, size=3, col="blue")
+
+
+pcb = dplyr::select(data.frame(beta.sim),starts_with("pcb_"))
+pcb_fit<- cbind(lwr= apply(pcb, 2, quant5)[1,], fit= apply(pcb, 2, quant5)[2,], upr=apply(pcb, 2, quant5)[3,])
+
+ggplot(as.data.frame(pcb_fit), aes(rownames(pcb_fit), 
+  fit, size=10, group=1, ylim=max(upr)+0.8)) +
+  theme_bw(base_size=10)+ 
+  geom_point(size=2)+
+  geom_line(size=1)+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.2, size=1)+
+  xlab("Lab")+
+  ylab("Fitted value")+
+  ggtitle("Gestational Age acorss (JAGS)")+
+  theme(axis.text.x=element_blank())+
+  geom_text(aes(label = round(lwr,2), y = lwr), vjust = 1.5, size=3) +
+  geom_text(aes(label = round(upr,2), y = upr), vjust = -0.5, size=3) +
+  geom_text(aes(label = rownames(pcb_fit), y = upr+0.5), vjust = -0.5, size=3, col="blue")
+
+### center 10 31 45 higher than center 5; center 15 37 82 lower than center 5
+### pcbs all cover 0, but 105, 028 higher, and 074 lower
+```
+
