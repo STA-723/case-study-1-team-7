@@ -5,7 +5,7 @@ output: beamer_presentation
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = FALSE, fig.height = 5)
 library(arm)
 library(corrplot)
 library(naniar)
@@ -65,15 +65,16 @@ data_46 %>%
 
 ## EDA: Heterogeneity across Centers
 
-The demographic background of each center varies a lot, suggesting heterogeity across centers.
-(favor fixed effect instead of random effect)
-
 ```{r heter, echo=FALSE, cache=TRUE}
 ggplot(data_46,mapping = aes(x=as.factor(center),y=gestational_age,color=race))+geom_boxplot()+theme_bw()
-ggplot(data_46,mapping = aes(x=as.factor(center),y=score_income,color=race))+geom_boxplot()+theme_bw()
+# ADD LABELS -- I DO NOT KNOW WHAT IS RACE 1!!!
+# TOO MUCH; JUST SHOW ONE OF THE TWO.
+# ggplot(data_46,mapping = aes(x=as.factor(center),y=score_income,color=race))+geom_boxplot()+theme_bw()
 ```
 
-```{r EDA, echo=FALSE, cache=TRUE}
+```{r EDA, echo=FALSE, cache=TRUE, include=FALSE, eval=FALSE}
+# COULD BE OMITTED. TURNING OFF FOR NOW.
+# otherwise set include/eval to true. Will need additional slide.
 Longnecker <- readRDS("./Longnecker.rds")
 Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
 Longnecker$center <- as.factor(Longnecker$center) # Factorize center
@@ -104,12 +105,24 @@ $$
 \end{aligned}
 $$
 
+## Addressing PCB's
+Two main approaches:
+
+  i. Everyone contributes, with different weights (**principal component regression**)
+  
+  ii. Pick a few representative voters (**variable selection**)
+
 ```{r boilerplate_for_models, echo=F, include=F}
 Longnecker <- readRDS("./Longnecker.rds")
 Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
 Longnecker$center <- as.factor(Longnecker$center) # Factorize center
 Longnecker[Longnecker$gestational_age > 46, "gestational_age"] <- 46 # Truncate at age == 46
-x <- model.matrix(gestational_age ~ . - center, data = Longnecker)
+complete_formula <- as.formula(
+  "gestational_age ~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + 
+  pcb_118 + pcb_153 + pcb_170 + pcb_138 + pcb_180 + pcb_194 + pcb_203 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center"
+)
+x <- model.matrix(complete_formula, data = Longnecker)
 miss_indices <- as.integer(row.names(x))
 Longnecker_complete <- Longnecker[miss_indices,] # Only those non-missing obs.
 PC1_pcb <- prcomp(x[,grepl("pcb", colnames(x))], scale.=TRUE)$x[,1]
@@ -126,20 +139,13 @@ Longnecker_complete_pc$earlylvl <- cut(Longnecker_complete_pc$gestational_age,
 
   - Binary response: preterm delivery (<37 wks) 
   
-    - Loss of information about different levels of risk involved in different periods
-    
-  - Ordinal response: categories of delivery periods
-  
-    i. Very preterm (< 32 wks)
-    
-    ii. Moderately preterm (32 or 33 wks)
-    
-    iii. Late preterm (majority; < 36 wks)
+    - Loss of information about different levels of risk involved in ordered levels
 
 ```{r, echo=F, include=T}
 Longnecker_complete_pc$earlylvl %>% 
   table(.) %>% prop.table() %>% 
-  barplot()
+  barplot(names.arg = c("Very preterm\n(<32)", "Moderate\n(32-3)",
+                        "Late preterm\n(<36)", "Normal--Late\n(>=37)"))
 ```
 
     
@@ -151,52 +157,79 @@ Longnecker_complete_pc$earlylvl %>%
   
 $${\rm Pr}(Y_i \leq k|X_i) = {\rm logit}^{-1}(\beta_{0,k} + \boldsymbol{\beta}^TX_i),\; k=1,2,3,4.$$
   
-    - Possible violation: can be proportional, but not by a constant factor
+  - Possible violation: can be proportional, but not by a constant factor
 
 ## Predictors to be adjusted for
 
-  - Indication from model fits against including score variables
+  - Excluded: three score variables relating to education, income, and occupation
   
-    - Advantage of resolving missingness issues
+  - Justification: $F$-test against other predictors excluding chemicals, exploratory model fits
     
   - First principal component for PCB levels (scaled)
-  
-    - Multicollinearity abetted at cost of direct interpretation of effect size
-
-(... Want some kind of plot here illustrating the above points ...)
-
 
 ```{r, echo=F, include=T}
+pca_formula1 <- as.formula("early ~ dde + PC1 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center")
+pca_formula2 <- as.formula("earlylvl ~ dde + PC1 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center")
 # 1. Binary logistic
-llm_with_pc <- glm(early ~ . - earlylvl - gestational_age, family = binomial, 
+llm_with_pc <- glm(pca_formula1, family = binomial, 
                    data = Longnecker_complete_pc)
 # 2. Ordinal logistic
-olm_with_pc <- polr(earlylvl ~ . - early - gestational_age, data = Longnecker_complete_pc)
+olm_with_pc <- polr(pca_formula2, data = Longnecker_complete_pc)
 #
-llm_coefs <- c( coef(llm_with_pc)[c("dde", "PC1")],
-   "center5" = as.numeric(coef(llm_with_pc)[1]),
-   coef(llm_with_pc)[1] + coef(llm_with_pc)[ grepl("center", names(coef(llm_with_pc))) ] )
+llm_coefs <- coef(llm_with_pc)
 llm_confint <- suppressMessages(confint(llm_with_pc))
-llm_confint <- suppressMessages(rbind(llm_confint[c("dde", "PC1"),],
-                    "center5" = llm_confint[1,],
-                    llm_confint[1,]+llm_confint[grepl("center", rownames(confint(llm_with_pc))),]))
 
 llm_coefs <- cbind.data.frame(Mean = llm_coefs, llm_confint)
 #
-olm_coefs <- -1 * c( coef(olm_with_pc)[c("dde", "PC1")],
-   "center5" = as.numeric(coef(olm_with_pc)[1]),
-   coef(olm_with_pc)[1] + coef(olm_with_pc)[ grepl("center", names(coef(olm_with_pc))) ] )
-olm_confint <- suppressMessages(confint(olm_with_pc))
+olm_coefs <- -1 * coef(olm_with_pc)
+olm_confint <- suppressMessages(-1 * confint(olm_with_pc))
+olm_coefs <- suppressMessages(cbind.data.frame(Mean = olm_coefs, olm_confint))
 ```
 
-95\% (approximate) confidence intervals for the models:
-```{r, echo=F, include=T,cache=T}
-# Will need more of a plot here
-round(llm_coefs[c("dde", "PC1"),], 3)
-round(llm_coefs[c("dde", "PC1"),], 3)
+## Estimated Effects
+ 
+ - 95\% confidence interval estimates for significant coefficients
+ 
+```{r, echo=F, include=T}
+knitr::kable(llm_coefs[c("dde", "PC1", "triglycerides", "cholesterol"),], format = "latex", digits = 3,
+             caption = "Logistic")
+knitr::kable(olm_coefs[c("dde", "PC1", "triglycerides"),], format = "latex", digits = 3,
+             caption = "Ordinal logistic")
 ```
 
-  * Hard to see improvement from a "baseline" model (Gaussian)
+## Estimated Effects
+
+  - Two models agree in significant positive mean shifts for center IDs 15, 37, 82 (large number of black subjects)
+
+ - "Baseline" log odds +/- 2 standard errors, on probability scale, is estimated for each category by the ordered logistic model.
+
+```{r, echo=F, message=F, include=T}
+blo <- summary(olm_with_pc)$coefficients[20:22, "Value"] # baseline log-odds
+bprobs <- exp(blo) / (1+exp(blo))
+# Transforming +/- 2SE to probability scale
+odds_lb <- exp(blo) * exp(-2 * summary(olm_with_pc)$coefficients[20:22, "Std. Error"])
+odds_ub <- exp(blo) * exp(2 * summary(olm_with_pc)$coefficients[20:22, "Std. Error"])
+probs_lb <- odds_lb / (1 + odds_lb); probs_ub <- odds_ub / (1 + odds_ub) 
+knitr::kable(cbind.data.frame("Lower bound" = probs_lb,
+                              "Mean" = bprobs,
+                              "Upper bound" = probs_ub,
+                              row.names = c("Very preterm", "Moderately", "Late preterm")
+                              ),
+             format = "latex", digits = 3)
+```
+
+
+## Interpretation
+
+  - Model 1: Adjusted for PCB levels and demographic variables, a 1ug increase in DDE exposure corresponds to `r round(exp(llm_coefs[c("dde"), 1]),3)` times more odds of preterm delivery.
+  
+  - Model 2: (Adjusted) A 1ug increase in DDE exposure corresponds to `r round(exp(olm_coefs[c("dde"), 1]),3)` times more odds of more severely preterm delivery (very than moderately so, etc.).
+
+  - Similar interpretation can be done for `PC1` and individual weights given to PCB compounds, since the weights are all positive
+  
+  - However, inference is unidentical to DDE in the sense that we are not adjusting for other PCB compoounds
 
 ## Diagnostic Plots
 
@@ -214,16 +247,7 @@ boxplot(est_probs_llm ~ Longnecker_complete_pc$early,
         ylab = "Estimated probabilities")
 #
 est_probs_olm <- predict(olm_with_pc, type = "probs")
-boxplot(est_probs_olm, ylab = "Estimated probabilities")
-#
-# DO WE WANT SOME KIND OF OUT-OF-SAMPLE PREDICTABILITY VALIDATION???
-#
-anova(llm_with_pc, test = "Chisq")
-anova(update(llm_with_pc, . ~ . - dde + dde), test = "Chisq") 
 ```
-
-## Inference on Effect Sizes
-... (clear interpretation of the logistic/ordinal coefficients needed here)
 
 ## Further Discussion: PCBs
 
@@ -243,7 +267,6 @@ pcb_fit<- cbind(lwr= apply(pcb, 2, quant5)[1,], fit= apply(pcb, 2, quant5)[2,], 
 
 ggplot(as.data.frame(pcb_fit), aes(rownames(pcb_fit), 
   fit, size=10, group=1, ylim=max(upr)+0.8)) +
-  theme_bw(base_size=10)+ 
   geom_point(size=2)+
   geom_line(size=1)+
   geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.2, size=1)+
