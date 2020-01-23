@@ -15,7 +15,8 @@ library(monomvn)
 library(BAS)
 library(R2jags)
 library(ggmosaic)
-Longnecker <- readRDS("./Longnecker.rds")
+library(mice)
+Longnecker <- readRDS("C:/Users/XJ/Desktop/case-study-1-team-7/Longnecker.rds")
 Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
 Longnecker$center <- as.factor(Longnecker$center) # Factorize center
 Longnecker$center <- relevel(Longnecker$center, ref = "5")
@@ -95,17 +96,32 @@ summary(age.bas3)
 We applied Horseshoe prior for all the parameters in this problem. The reason is that Horseshoe prior has the following two properties: sparsity and unbiasedness. This allows us to shrink small coefficients towards 0 and meanwhile keeping large coefficients in the model. We adapted the full model with all main effects excluding the PCBs with zero inflation. 
 
 ```{r cache=TRUE}
-full.lm<- glm(gestational_age_binary~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_153+ pcb_138 + pcb_180 + pcb_194 + pcb_203 + race + triglycerides + cholesterol+ maternal_age + smoking_status + score_education + score_income + score_occupation + center, data=data_age_na)
+full.lm<- glm(gestational_age_binary~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + pcb_118 + pcb_153+ pcb_170 + pcb_138 + pcb_180 + pcb_194 + pcb_203 + race + triglycerides + cholesterol+ maternal_age + smoking_status + score_education + score_income + score_occupation + center, family = "binomial", data=data_age_na)
 
 X = model.matrix(full.lm)
-Y = data_age_na$gestational_age
+Y = factor(data_age_na$gestational_age_binary)
 nrow(X); length(Y);
 
 #bhs.fit = bhs(X[,-1], Y, T=5000, normalize=T)
-bhs.fit = bhs(X[,-1], Y, T=5000, normalize=T, lambda2 =0.01)
+#bhs.fit = blasso(X[,-1], Y, T=10000, normalize=T, lambda2 =0.001)
+#lasso_logistic<- cv.EBglmnet(X[,-1], Y, family="binomial", prior= "lasso")
 
-beta.sim = bhs.fit$beta
-colnames(beta.sim) = colnames(X)[-1]
+lasso_logistic<- EBglmnet(X[,-1], Y, family="binomial", prior= "lasso", hyperparameters = 0.01)
+lasso_logistic$fit
+colnames(X)[lasso_logistic$fit[,1]+1]
+
+hs_logistic<- EBglmnet(X[,-1], Y, family="binomial", prior= "horseshoe", hyperparameters = 0.01)
+lasso_logistic$fit
+colnames(X)[lasso_logistic$fit[,1]+1]
+```
+
+```{r}
+lasso_logistic<- bayesreg(Y ~ X[,-1] , model = "binomial", prior = "horseshoe", n.samples = 10000, burnin = 1000, thin = 5, t.dof = 5, data = data_age_na)
+beta.sim<- lasso_logistic$beta
+beta.sim<- as.data.frame(beta.sim)
+
+#beta.sim = bhs.fit$beta
+colnames(beta.sim) = colnames(X[,-1])
 quant5 = function(x) {round(quantile(x, c(0.025, 0.5, 0.975)),2)} ## 95% CI
 
 coefs_for_table<- apply(beta.sim, 2, quant5)
@@ -278,5 +294,19 @@ ggplot(as.data.frame(pcb_fit), aes(rownames(pcb_fit),
 
 ### center 10 31 45 higher than center 5; center 15 37 82 lower than center 5
 ### pcbs all cover 0, but 105, 028 higher, and 074 lower
+```
+
+Sensitivity Analysis
+
+```{r}
+Longnecker <- readRDS("C:/Users/XJ/Desktop/case-study-1-team-7/Longnecker.rds")
+Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
+Longnecker$center <- as.factor(Longnecker$center) # Factorize center
+Longnecker$center <- relevel(Longnecker$center, ref = "5")
+Longnecker[Longnecker$gestational_age > 46, "gestational_age"] <- 46 # Truncate at age == 46
+
+data_impute<- mice(data = Longnecker, m = 1, method = "pmm")
+data <- complete(data_impute)
+
 ```
 
