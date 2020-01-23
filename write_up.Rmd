@@ -24,10 +24,10 @@ We study the association between exposure to Dichlorodiphenyldichloroethylene (D
 We study the association between exposure to Dichlorodiphenyldichloroethylene (DDE) and 12 Polychlorinated Biophenyl (PCB) members and premature delivery. Based on both binary and ordinal logistic regression models, we find evidence that higher exposure to both DDE and PCB is associated with higher odds of preterm delivery. Alternative modeling methods are discussed, across which we find consistent indication of DDE and PCB effect.
 
 # Introduction
-
+  
 
 # Materials and Methods
-We consider a class of linear regression models that can model the linear association between the probability of preterm delivery and predictors of interest on some suitable scale. In particular, we consider a logistic regression model, where the log-odds of premature delivery are modeled by a linear combination of DDE and PCB levels, adjusted for observed demographic predictors including race, age, and smoking status, and triglyceride and cholesterol levels. While binary logistic regression is a standard method in modeling categorical response, we suffer a loss of information on different delivery periods, which does contain information about different levels of risk on the infants' health. An ordinal logistic regression can extend the response to have multiple ordered categoriesSpecifically, consider ordinal response $Y_i$ with four possible values, $k=1,2,3,4$, each corresponding to different categories of preterm delivery with increasing level of infant health risk. The model can be written as:
+We consider a class of linear regression models that can model the linear association between the probability of preterm delivery and predictors of interest on some suitable scale. In particular, we consider a logistic regression model, where the log-odds of premature delivery are modeled by a linear combination of DDE and PCB levels. While binary logistic regression is a standard method, we suffer loss of information on different delivery periods, which contains information about different levels of risk on the infants' health. An ordinal logistic regression can extend the response to have multiple ordered categoriesSpecifically, consider ordinal response $Y_i$ with four possible values, $k=1,2,3,4$, each corresponding to different categories of preterm delivery with increasing level of infant health risk. The model can be written as:
 $${\rm Pr}(Y_i=k|\mathbf{x}_i) = {\rm logit}^{-1}(\alpha_{k} + \mathbf{x}_i^T\beta)\iff {\rm Odds}(Y_i=k|\mathbf{x}_i) = e^{\alpha_k} e^{\mathbf{x}_i^T\beta},$$
 hence the odds of different preterm delivery risks are proportional to each other. The data exhibit some indication that the model assumption can be violated; i.e., DDE is observed to have stronger association with premature delivery, as we move from late preterm (nearly around 37-week threshold) to earlier delivery periods.
 
@@ -45,10 +45,16 @@ The main challenge is high correlation between multiple PCB variables. High corr
 As shown in figure , the dataset contains 2380 observations, with over 90% having missing values on predictor `albumin`, around 22% having missing values on socio-economic indices and 1 observation with missing value on PCB level. We drop the variable albumin and keep the complete cases in terms of remaining variables. A sensitivity analysis is also conducted to addressing the problem. As shown in Figure , strong correlations exist among PCBs, which suggest a severe multicollinearity may exist among PCBs. Figure shows a heterogeneity across centers exist. Since different centers have distinct demographic background (such as race and income as shown in Figure), we assume each center cannot borrow information from others and consider fix effects for 12 centers instead of random effect. For simplicity and save the degree of freedom, we do not consider the interaction between center and other predictors.
 
 ##### Main Results
+Based on the binary logistic regression model, the significant predictors include DDE, proxy variable for PCB levels,triglyceride and cholesterol levels, along with mean shifts in centers (...) for which subjects are primarily of black race. Estimated model effects and their 95\% confidence intervals can be found in Table 1.
+
 
 For the logistic regression, we consider 37 weeks as a cutoff for preterm delivery
 
 
+Most of the estimates have a direct scientific interpretation. For isntance, for a 1$\mu$g increase in DDE exposure, adjusted for all other variables, a mother has 0.8\% increased odds of premature delivery. Similarly, for a 1g/dL increase in triglyceride level, adjusted for other variables, a mother has 0.3\% increased odds of premature delivery. Such inference, however, is hampered for PCB, as discussed above. We do get an expected positive sign, indicating that PCB has effect oc increasing preterm delivery odds. Ordinal logistic model estimates mostly agree in the signs and magnitudes of the effects; however, cholesterol level is no longer considered a significant variable. 
+
+
+(...Unfinished, but you can start adding LASSO results here...)
 
 ##### Sensitivity Analysis
 
