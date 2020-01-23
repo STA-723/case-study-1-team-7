@@ -107,10 +107,19 @@ nrow(X); length(Y);
 #lasso_logistic<- cv.EBglmnet(X[,-1], Y, family="binomial", prior= "lasso")
 
 lasso_logistic<- EBglmnet(X[,-1], Y, family="binomial", prior= "lasso", hyperparameters = 0.01)
+lasso_logistic$call
 lasso_logistic$fit
 colnames(X)[lasso_logistic$fit[,1]+1]
 
+library(bayesreg)
+lasso_logistic_reg<- bayesreg(Y ~ X[,-1] , model = "binomial", prior = "lasso", n.samples = 10000, burnin = 2000, thin = 5, t.dof = 5, data=data_age_na)
+lasso_logistic_reg$mu.beta
 
+beta.sim<- lasso_logistic_reg$beta
+beta.sim<- as.data.frame(beta.sim)
+quantile(beta.sim[,4], prob=c(0.025, 0.975))
+quantile(beta.sim[,7], prob=c(0.025, 0.975))
+quantile(beta.sim[,1], prob=c(0.025, 0.975))
 ```
 
 ```{r}
@@ -430,6 +439,7 @@ olm_confint <- suppressMessages(-1 * confint(olm_with_pc))
 olm_coefs <- suppressMessages(cbind.data.frame(Mean = olm_coefs, olm_confint))
 ```
 
+
 ```{r}
 m1.cook=cooks.distance(llm_with_pc)
 cook = which(m1.cook>4/nrow(Longnecker_complete_pc))
@@ -441,25 +451,68 @@ llm_with_pc_infl <- glm(pca_formula1, family = binomial,
 llm_coefs_infl <- coef(llm_with_pc_infl)
 llm_confint_infl <- suppressMessages(confint(llm_with_pc_infl))
 
-sensi_logistic<- data.frame(dde_glm = c(llm_coefs[2], llm_confint[2,]), pc1_glm =  c(llm_coefs[3], llm_confint[3,]), dde_infl = c(llm_coefs_infl[2], llm_confint_infl[2,]), pc1_infl =  c(llm_coefs_infl[3], llm_confint_infl[3,]))
-
-ggplot(as.data.frame(sensi_logistic), aes(c("DDE", "PC1"), 
-  fit, size=10, group=1, ylim=max(upr)+0.8)) +
-  theme_bw(base_size=10)+ 
-  geom_point(size=2)+
-  geom_line(size=1)+
-  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.2, size=1)+
-  xlab("Lab")+
-  ylab("Fitted value")+
-  ggtitle("Gestational Age acorss (JAGS)")+
-  theme(axis.text.x=element_blank())+
-  geom_text(aes(label = round(lwr,2), y = lwr), vjust = 1.5, size=3) +
-  geom_text(aes(label = round(upr,2), y = upr), vjust = -0.5, size=3) +
-  geom_text(aes(label = rownames(pcb_fit), y = upr+0.5), vjust = -0.5, size=3, col="blue")
+sensi_logistic<- data.frame(name = c("dde", "dde", "pc1", "pc1"), mean = c(llm_coefs[2], llm_coefs_infl[2], llm_coefs[3], llm_coefs_infl[3]), lower = c(llm_confint[2,1], llm_confint_infl[2,1],llm_confint[3,1], llm_confint_infl[3,1]), higher = c(llm_confint[2,2], llm_confint_infl[2,2],llm_confint[3,2], llm_confint_infl[3,2]), type = c("With Influential points", "Without Influential points", "With Influential points", "Without Influential points"))
+  
+#  dde_glm = c(llm_coefs[2], llm_confint[2,]), pc1_glm =  c(llm_coefs[3], llm_confint[3,]), dde_infl = c(llm_coefs_infl[2], llm_confint_infl[2,]), pc1_infl =  c(llm_coefs_infl[3], llm_confint_infl[3,])
+library(ggplot2)
+ggplot(sensi_logistic, aes(x = name, y = mean,ymin = lower, ymax =higher, 
+               color=type)) +
+    geom_point(position=position_dodge(width=0.5), size = 2.5) + 
+    geom_linerange(position=position_dodge(width=0.5), size =0.5) +  theme_bw() +
+    labs(colour="Type", y="Log Odds", x="") + 
+    theme(plot.title = element_text(size = 12,face="bold" )) + 
+    theme(axis.title=element_text(size="12") ,axis.text=element_text(size=12)) 
 
 
-
-ggplot(fixCIoi,aes(variable,estimate))+
-  geom_point(position=position_dodge(width=0.5),aes(shape =points))+
-  geom_errorbar(position=position_dodge(width=0.5),aes(ymin=conf.low, ymax=conf.high,color = points))+ labs(title = "Confidence Interval with/without influential points")+theme_bw()
 ```
+
+```{r}
+library(mice)
+library(glmnet)
+data=readRDS("C:/Users/XJ/OneDrive - Duke University/case-study-1-team-7/Longnecker.rds")
+data=data%>%dplyr::select(gestational_age,dde:cholesterol,center)
+data_46=data%>%mutate(y=gestational_age)
+data_46[data_46$y>46,"y"]=46
+data_46=data_46%>%dplyr::select(-gestational_age,-albumin)%>%mutate(race=factor(race),center=factor(center))
+
+data_impute<- mice(data = data_46, m = 1, method = "pmm")
+data <- complete(data_impute)
+
+train.data=data
+
+set.seed(123)
+x <- model.matrix(y~., train.data)[,-1]
+# Convert the outcome (class) to a numerical variable
+y <- ifelse(train.data$y<37,1,0)
+train.data$y=y
+cv.lasso2 <- cv.glmnet(x, y, alpha = 1,family="binomial")
+# Fit the final model on the training data
+model2 <- glmnet(x, y, alpha = 1,family="binomial",
+                lambda = cv.lasso2$lambda[27])
+
+
+formula_lasso_w <- as.formula(
+  "y ~ dde + pcb_074 + pcb_153 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center + score_education + score_income + score_occupation"
+)
+
+model21_w <- glm(formula_lasso_w, family = binomial, 
+                   data = train.data)
+
+lasso_coef_impute <- coef(model21_w)
+lasso_confint_impute <- suppressMessages(confint(model21_w))
+lassso_coefs_impute <- cbind.data.frame(Mean = lasso_coef, lasso_confint)
+
+
+sensi_logistic<- data.frame(name = c("dde", "dde", "pcb074", "pcb074", "pcb153", "pcb153"), mean = c(lassso_coefs[2,1], lassso_coefs_impute[2,1], lassso_coefs[3,1], lassso_coefs_impute[3,1], lassso_coefs[4,1], lassso_coefs_impute[4,1]), lower = c(lassso_coefs[2,2], lassso_coefs_impute[2,2], lassso_coefs[3,2], lassso_coefs_impute[3,2], lassso_coefs[4,2], lassso_coefs_impute[4,2]), higher = c(lassso_coefs[2,3], lassso_coefs_impute[2,3], lassso_coefs[3,3], lassso_coefs_impute[3,3], lassso_coefs[4,3], lassso_coefs_impute[4,3]), type = c("missing", "impute", "missing", "impute", "missing", "impute"))
+
+ggplot(sensi_logistic, aes(x = name, y = mean,ymin = lower, ymax =higher, 
+               color=type)) +
+    geom_point(position=position_dodge(width=0.5), size = 2.5) + 
+    geom_linerange(position=position_dodge(width=0.5), size =0.5) +  theme_bw() +
+    labs(colour="Type", y="Log Odds", x="") + 
+    theme(plot.title = element_text(size = 12,face="bold" )) + 
+    theme(axis.title=element_text(size="12") ,axis.text=element_text(size=12)) 
+
+```
+
