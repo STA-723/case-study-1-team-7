@@ -163,8 +163,9 @@ llm_confint <- suppressMessages(confint(llm_with_pc))
 llm_coefs <- cbind.data.frame(Mean = llm_coefs, llm_confint)
 #
 olm_coefs <- -1 * coef(olm_with_pc)
-olm_confint <- suppressMessages(-1 * confint(olm_with_pc))
+olm_confint <- suppressMessages(-1 * confint(olm_with_pc)[,c(2,1)])
 olm_coefs <- suppressMessages(cbind.data.frame(Mean = olm_coefs, olm_confint))
+colnames(olm_coefs) <- colnames(olm_coefs)[c(1,3,2)]
 ```
 
 ## Estimated Effects
