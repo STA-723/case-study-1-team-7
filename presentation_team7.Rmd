@@ -392,7 +392,7 @@ olm_coefs <- suppressMessages(cbind.data.frame(Mean = olm_coefs, olm_confint))
 ```
 
 
-```{r, echo=FALSE, cache=T}
+```{r cache=T, include=FALSE}
 m1.cook=cooks.distance(llm_with_pc)
 cook = which(m1.cook>4/nrow(Longnecker_complete_pc))
 Longnecker_complete_pc_infl<- Longnecker_complete_pc[-cook,]
@@ -403,8 +403,10 @@ llm_with_pc_infl <- glm(pca_formula1, family = binomial,
 llm_coefs_infl <- coef(llm_with_pc_infl)
 llm_confint_infl <- suppressMessages(confint(llm_with_pc_infl))
 
-sensi_logistic<- data.frame(name = c("dde", "dde", "pc1", "pc1"), mean = c(llm_coefs[2], llm_coefs_infl[2], llm_coefs[3], llm_coefs_infl[3]), lower = c(llm_confint[2,1], llm_confint_infl[2,1],llm_confint[3,1], llm_confint_infl[3,1]), higher = c(llm_confint[2,2], llm_confint_infl[2,2],llm_confint[3,2], llm_confint_infl[3,2]), type = c("With Influential points", "Without Influential points", "With Influential points", "Without Influential points"))
-  
+sensi_logistic<- data.frame(name = c("dde", "dde", "pc1", "pc1"), mean = c(llm_coefs[2,1], llm_coefs_infl[2], llm_coefs[3,1], llm_coefs_infl[3]), lower = c(llm_confint[2,1], llm_confint_infl[2,1],llm_confint[3,1], llm_confint_infl[3,1]), higher = c(llm_confint[2,2], llm_confint_infl[2,2],llm_confint[3,2], llm_confint_infl[3,2]), type = c("With Influential points", "Without Influential points", "With Influential points", "Without Influential points"))
+```
+
+```{r influenplot,cache=T,echo=F}
 #  dde_glm = c(llm_coefs[2], llm_confint[2,]), pc1_glm =  c(llm_coefs[3], llm_confint[3,]), dde_infl = c(llm_coefs_infl[2], llm_confint_infl[2,]), pc1_infl =  c(llm_coefs_infl[3], llm_confint_infl[3,])
 
 ggplot(sensi_logistic, aes(x = name, y = mean,ymin = lower, ymax =higher, 
