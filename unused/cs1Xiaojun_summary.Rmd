@@ -516,3 +516,50 @@ ggplot(sensi_logistic, aes(x = name, y = mean,ymin = lower, ymax =higher,
 
 ```
 
+```{r ordlasso, cache=T,echo=F}
+library("ordinalNet")
+data=readRDS("C:/Users/XJ/OneDrive - Duke University/case-study-1-team-7/Longnecker.rds")
+data=data%>%dplyr::select(gestational_age,dde:cholesterol,center)
+data_46=data%>%mutate(y=gestational_age)
+data_46[data_46$y>46,"y"]=46
+data_46=data_46%>%dplyr::select(-albumin)%>%mutate(race=factor(race),center=factor(center))
+
+data_impute<- mice(data = data_46, m = 1, method = "pmm")
+data <- complete(data_impute)
+train.data.ord<- data
+train.data.ord$y <- cut(train.data.ord$gestational_age,
+                                       breaks = c(0, 31, 33, 36, 46), right = TRUE)
+ord.x=model.matrix(y~.,data=train.data.ord)
+#ordlasso.model <- ordinalNet(ord.x, train.data.ord$y, family="cumulative", link="logit",
+#                   parallelTerms=TRUE, nonparallelTerms=FALSE,alpha=1)
+#coef(ordlasso.model) # pcb_028,074,153,138
+formula_lasso_w.ord <- as.formula(
+  "y ~ dde + pcb_074 + pcb_153 +
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center + score_education + score_income + score_occupation"
+)
+
+model21_w.ord <- polr(formula_lasso_w.ord, 
+                   data = train.data.ord)
+
+```
+
+```{r cilassoord, include=FALSE}
+olasso_coefs_impute <- -1 * coef(model21_w.ord)
+olasso_confint_impute <- suppressMessages(-1 * confint(model21_w.ord)[,c(2,1)])
+olasso_coefs_impute <- suppressMessages(cbind.data.frame(Mean = olasso_coefs_impute, olasso_confint_impute))
+colnames(olasso_coefs_impute) <- colnames(olasso_coefs_impute)[c(1,3,2)]
+```
+
+```{r}
+sensi_logistic<- data.frame(name = c("dde", "dde", "pcb074", "pcb074", "pcb153", "pcb153"), mean = c(olasso_coefs[1,1], olasso_coefs_impute[1,1], olasso_coefs[2,1], olasso_coefs_impute[2,1], olasso_coefs[3,1], olasso_coefs_impute[3,1]), lower = c(olasso_coefs[1,2], olasso_coefs_impute[1,2], olasso_coefs[2,2], olasso_coefs_impute[2,2], olasso_coefs[3,2], olasso_coefs_impute[3,2]), higher = c(olasso_coefs[1,3], olasso_coefs_impute[1,3], olasso_coefs[2,3], olasso_coefs_impute[2,3], olasso_coefs[3,3], olasso_coefs_impute[3,3]), type = c("missing", "impute", "missing", "impute", "missing", "impute"))
+
+ggplot(sensi_logistic, aes(x = name, y = mean,ymin = lower, ymax =higher, 
+               color=type)) +
+    geom_point(position=position_dodge(width=0.5), size = 2.5) + 
+    geom_linerange(position=position_dodge(width=0.5), size =0.5) +  theme_bw() +
+    labs(colour="Type", y="Log Odds", x="") + 
+    theme(plot.title = element_text(size = 12,face="bold" )) + 
+    theme(axis.title=element_text(size="12") ,axis.text=element_text(size=12)) 
+
+
+```
