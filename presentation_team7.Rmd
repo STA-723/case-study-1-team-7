@@ -16,14 +16,10 @@ library(tidyr)
 library(purrr)
 library(lme4)
 library(MASS)
-#library(ggpubr)
-#library(monomvn)
-#library(BAS)
-#library(R2jags)
 library(ggmosaic)
 ```
 
-## EDA for missing data
+## Missing data 
 
 - Over 90% missing `albumin`, around 20% missing `score_*`, others less than 0.1%
 - Drop the `albumin` and keep the complete cases
@@ -34,66 +30,49 @@ data=data %>% dplyr::select(gestational_age, dde:cholesterol, center)
 gg_miss_upset(data)
 ```
 
-## EDA: Correlation Plot
+## Noisy measurement
 
-- Weak correlation between covariates and `gestational age`
-- Large correlation among covariates especially for PCBs
-
-```{r corrplot, echo=FALSE,cache=TRUE}
-data_ = data %>% mutate(race=as.numeric(race))
-M2 = cor(as.matrix(na.omit(data_)))
-corrplot.mixed(M2,number.cex=.5, upper="ellipse")
-```
-
-## EDA: Histogram for All Variables
-
-- Zero-inflation on some of PCBs
-- Long left tail of `gestational age` (after truncated at 46)
+- Zero-inflation on some of PCBs -> PCA vs Variable Selection
+- Long left tail of `gestational age` -> categorical variable
 
 ```{r hist, echo=FALSE, message=FALSE, warning=FALSE,cache=TRUE}
 data_46=data_#%>%mutate(y=gestational_age)
 data_46[data_46$gestational_age>46,"gestational_age"]=46
 data_46=data_46%>%select(-albumin)%>%mutate(race=factor(race),center=factor(center))
 
+data_46$earlylvl <- cut(data_46$gestational_age,
+                                       breaks = c(0, 31, 33, 36, 46), right = TRUE)
 data_46 %>%
-  keep(is.numeric) %>% 
+  dplyr::select(gestational_age:triglycerides,-triglycerides,-dde) %>%
   gather() %>% 
   ggplot(aes(value)) +
     facet_wrap(~ key, scales = "free") +
     geom_histogram()
 ```
 
-## EDA: Heterogeneity across Centers
+
+## Multicollinearity
+
+- Weak correlation between covariates and `gestational age` (less than 0.3)
+- Large correlation among covariates especially for PCBs
+
+```{r corrplot, echo=FALSE,cache=TRUE}
+data_ = data %>% mutate(race=as.numeric(race))
+M2 = cor(as.matrix(na.omit(data_%>%select(pcb_028:pcb_203))))
+corrplot.mixed(M2,number.cex=2, upper="ellipse")
+#M3 = cor(as.matrix(na.omit(data_)))
+#M3[1,-1]
+#cordf=data.frame(cor=M3[1,-1],var=names(M3[1,-1]))
+#ggplot(cordf,aes(x=var,y=cor))+geom_point()+theme_bw()
+```
+
+## Heterogeneity across Centers: fix effects
+
+The demographic background (race, income, etc.) vary across center. -> fix effects
 
 ```{r heter, echo=FALSE, cache=TRUE}
-ggplot(data_46,mapping = aes(x=as.factor(center),y=gestational_age,color=race))+geom_boxplot()+theme_bw()
-# ADD LABELS -- I DO NOT KNOW WHAT IS RACE 1!!!
-# TOO MUCH; JUST SHOW ONE OF THE TWO.
-# ggplot(data_46,mapping = aes(x=as.factor(center),y=score_income,color=race))+geom_boxplot()+theme_bw()
+ggplot(data%>%filter(center%in%c(5,10,15,31,45,60)),mapping = aes(x=as.factor(center),y=gestational_age,color=race))+geom_boxplot()+theme_bw()
 ```
-
-```{r EDA, echo=FALSE, cache=TRUE, include=FALSE, eval=FALSE}
-# COULD BE OMITTED. TURNING OFF FOR NOW.
-# otherwise set include/eval to true. Will need additional slide.
-Longnecker <- readRDS("./Longnecker.rds")
-Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
-Longnecker$center <- as.factor(Longnecker$center) # Factorize center
-Longnecker[Longnecker$gestational_age > 46, "gestational_age"] <- 46 # Truncate at age == 46
-data = Longnecker
-data_age_na<- data[-which(is.na(data$pcb_028)), ]
-
-ggplot(data = data_age_na) +
-   geom_mosaic(aes(x = product(race, center), fill=race), na.rm=TRUE)+
-  labs(x = "Center ID", y = "Race", title='Race by center') + theme_bw()
-```
-
-## Challenges
-
-  * Noisy measurement
-  
-  * Multicollinearity
-  
-  * Modeling Heterogeneity between centers
 
 ## Ultimate goal of the model
 What would a hypothetical experimental study for DDE and PCB's look like?
@@ -314,6 +293,7 @@ plot(cv.lasso2) # logistic
 
 coef(model1) # dde, pcb_028, 074, 153
 coef(model2) # dde, pcb_074, 153
+confint(model2)
 ```
 
 ```{r vs, cache=T,echo=F}
