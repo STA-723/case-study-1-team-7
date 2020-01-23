@@ -17,6 +17,8 @@ library(purrr)
 library(lme4)
 library(MASS)
 library(ggmosaic)
+library(mice)
+library(ordinalNet)
 ```
 
 ## Missing data 
@@ -339,6 +341,62 @@ knitr::kable(tbl_test, format = "latex", digits = 3,
 
 ## Sensitivity Analysis
 
+```{r cache=TRUE}
+Longnecker <- readRDS("./Longnecker.rds")
+Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
+Longnecker$center <- as.factor(Longnecker$center) # Factorize center
+Longnecker$center <- relevel(Longnecker$center, ref = "5")
+Longnecker[Longnecker$gestational_age > 46, "gestational_age"] <- 46 # Truncate at age == 46
+
+data_impute<- mice(data = Longnecker, m = 1, method = "pmm")
+data <- complete(data_impute)
+
+Longnecker_complete_pc=data
+Longnecker_complete_pc$earlylvl %>% 
+  table(.) %>% prop.table() %>% 
+  barplot(names.arg = c("Very preterm\n(<32)", "Moderate\n(32-3)",
+                        "Late preterm\n(<36)", "Normal--Late\n(>=37)"))
+
+
+complete_formula <- as.formula(
+  "gestational_age ~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + 
+  pcb_118 + pcb_153 + pcb_170 + pcb_138 + pcb_180 + pcb_194 + pcb_203 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center"
+)
+x <- model.matrix(complete_formula, data = Longnecker)
+miss_indices <- as.integer(row.names(x))
+Longnecker_complete <- Longnecker[miss_indices,] # Only those non-missing obs.
+PC1_pcb <- prcomp(x[,grepl("pcb", colnames(x))], scale.=TRUE)$x[,1]
+Longnecker_complete_pc <- cbind.data.frame(
+  Longnecker_complete[,!grepl("pcb", colnames(Longnecker_complete))],
+  PC1 = PC1_pcb)
+# Mutation: gestational week => categorical variables
+Longnecker_complete_pc$early <- (Longnecker_complete_pc$gestational_age < 37)
+Longnecker_complete_pc$earlylvl <- cut(Longnecker_complete_pc$gestational_age,
+                                       breaks = c(0, 31, 33, 36, 46), right = TRUE)
+
+
+pca_formula1 <- as.formula("early ~ dde + PC1 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center")
+pca_formula2 <- as.formula("earlylvl ~ dde + PC1 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center")
+# 1. Binary logistic
+llm_with_pc <- glm(pca_formula1, family = binomial, 
+                   data = Longnecker_complete_pc)
+# 2. Ordinal logistic
+olm_with_pc <- polr(pca_formula2, data = Longnecker_complete_pc)
+#
+llm_coefs <- coef(llm_with_pc)
+llm_confint <- suppressMessages(confint(llm_with_pc))
+
+llm_coefs <- cbind.data.frame(Mean = llm_coefs, llm_confint)
+#
+olm_coefs <- -1 * coef(olm_with_pc)
+olm_confint <- suppressMessages(-1 * confint(olm_with_pc))
+olm_coefs <- suppressMessages(cbind.data.frame(Mean = olm_coefs, olm_confint))
+```
+
+
 ```{r, echo=FALSE, cache=T}
 m1.cook=cooks.distance(llm_with_pc)
 cook = which(m1.cook>4/nrow(Longnecker_complete_pc))
@@ -353,7 +411,7 @@ llm_confint_infl <- suppressMessages(confint(llm_with_pc_infl))
 sensi_logistic<- data.frame(name = c("dde", "dde", "pc1", "pc1"), mean = c(llm_coefs[2], llm_coefs_infl[2], llm_coefs[3], llm_coefs_infl[3]), lower = c(llm_confint[2,1], llm_confint_infl[2,1],llm_confint[3,1], llm_confint_infl[3,1]), higher = c(llm_confint[2,2], llm_confint_infl[2,2],llm_confint[3,2], llm_confint_infl[3,2]), type = c("With Influential points", "Without Influential points", "With Influential points", "Without Influential points"))
   
 #  dde_glm = c(llm_coefs[2], llm_confint[2,]), pc1_glm =  c(llm_coefs[3], llm_confint[3,]), dde_infl = c(llm_coefs_infl[2], llm_confint_infl[2,]), pc1_infl =  c(llm_coefs_infl[3], llm_confint_infl[3,])
-library(ggplot2)
+
 ggplot(sensi_logistic, aes(x = name, y = mean,ymin = lower, ymax =higher, 
                color=type)) +
     geom_point(position=position_dodge(width=0.5), size = 2.5) + 
