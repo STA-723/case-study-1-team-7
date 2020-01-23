@@ -47,7 +47,7 @@ data_46 %>%
   gather() %>% 
   ggplot(aes(value)) +
     facet_wrap(~ key, scales = "free") +
-    geom_histogram()
+    geom_histogram() + theme_bw()
 ```
 
 
@@ -123,7 +123,7 @@ Longnecker_complete_pc$earlylvl <- cut(Longnecker_complete_pc$gestational_age,
 ```{r, echo=F, include=T}
 Longnecker_complete_pc$earlylvl %>% 
   table(.) %>% prop.table() %>% 
-  barplot(names.arg = c("Very preterm\n(<32)", "Moderate\n(32-3)",
+  barplot(names.arg = c("Very preterm\n(<32)", "Moderate\n(32-36)",
                         "Late preterm\n(<36)", "Normal--Late\n(>=37)"))
 ```
 
@@ -166,6 +166,8 @@ olm_coefs <- -1 * coef(olm_with_pc)
 olm_confint <- suppressMessages(-1 * confint(olm_with_pc))
 olm_coefs <- suppressMessages(cbind.data.frame(Mean = olm_coefs, olm_confint))
 ```
+
+
 
 ## Estimated Effects
  
@@ -230,12 +232,12 @@ est_probs_olm <- predict(olm_with_pc, type = "probs")
 
 ## Further Discussion: PCBs
 
-- Aggregating information of all the PCB's (PCA -> hard to interpretate)
+- Aggregating information of all the PCB's (PCA -> hard to interpret)
 - Selecting representative PCB's (Frequentist and Bayesian variable selection)
   - Bayesian Model Averaging 
   - Bayesian Lasso (PCB 074, 153)
   - Horseshoe Prior
-  - Lasso (Gaussian: dde, pcb_028, 074, 153; Logistic: dde, pcb_074, 153) -> 'consistent' with the previous model
+  - Lasso (Logistic: dde, pcb_074, 153) -> 'consistent' with the previous model
 
 ```{r}
 load("./lasso_logistic.rdata")
@@ -342,53 +344,84 @@ data_46[data_46$y>46,"y"]=46
 data_46=data_46%>%dplyr::select(-gestational_age,-albumin)%>%mutate(race=factor(race),center=factor(center))
 data_46_wscore=data_46%>%na.omit()
 set.seed(123)
-train.data=data_46_wscore
-x <- model.matrix(y~., train.data)[,-1]
-# Convert the outcome (class) to a numerical variable
-y <- train.data$y
-
-cv.lasso1 <- cv.glmnet(x, y, alpha = 1)
-# Fit the final model on the training data
-model1 <- glmnet(x, y, alpha = 1,
-                lambda = cv.lasso1$lambda.min)
 
 train.data=data_46_wscore
 x <- model.matrix(y~., train.data)[,-1]
 # Convert the outcome (class) to a numerical variable
 y <- ifelse(train.data$y<37,1,0)
-
+train.data$y=y
 cv.lasso2 <- cv.glmnet(x, y, alpha = 1,family="binomial")
 # Fit the final model on the training data
 model2 <- glmnet(x, y, alpha = 1,family="binomial",
-                lambda = cv.lasso2$lambda.min)
+                lambda = cv.lasso2$lambda[27])
 
-plot(cv.lasso1) # normal
 plot(cv.lasso2) # logistic
-
-coef(model1) # dde, pcb_028, 074, 153
-coef(model2) # dde, pcb_074, 153
-confint(model2)
+cv.lasso2$lambda
+cv.lasso2$lambda.min
+which(cv.lasso2$lambda==cv.lasso2$lambda.min)
+coef(model2) # dde, pcb_074, 153; the one with min mse, if relax the penalty a little bit, will include all the demographic characters
 ```
 
+```{r glmlasso, cache=T,echo=F, eval=T}
+formula_lasso_w <- as.formula(
+  "y ~ dde + pcb_074 + pcb_153 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center + score_education + score_income + score_occupation"
+)
+formula_lasso_o <- as.formula(
+  "y ~ dde + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center + score_education + score_income + score_occupation"
+)
+model21_w <- glm(formula_lasso_w, family = binomial, 
+                   data = train.data)
+summary(model21_w)
+model21_o <- glm(formula_lasso_o, family = binomial, 
+                   data = train.data)
+anova(model21_o,model21_w,test="LRT")
+```
+
+## inference on lasso
+
+```{r}
+library("selectiveInference")
+model2min <- glmnet(x, y, alpha = 1,family="binomial",
+                lambda = cv.lasso2$lambda.min)
+
+beta=coef(model2min)
+X=model.matrix(y~.,data=train.data)
+beta=as.matrix(beta)
+cis=fixedLassoInf(x=X[,-1], y=(train.data$y), beta=beta, lambda=cv.lasso2$lambda.min,family = "binomial",alpha=0.05)
+cis
+```
+
+## ordinal logistic regression.
+
 ```{r vs, cache=T,echo=F}
-model_n0=lm(y~.-dde-pcb_028-pcb_052-pcb_074-pcb_105-pcb_118-pcb_153-pcb_170-pcb_138-pcb_180-pcb_194-pcb_203,data=data_46_wscore)
-model_ndde=lm(y~.-pcb_028-pcb_052-pcb_074-pcb_105-pcb_118-pcb_153-pcb_170-pcb_138-pcb_180-pcb_194-pcb_203,data=data_46_wscore)
-model_npcbs=lm(y~.-dde-pcb_052-pcb_105-pcb_118-pcb_170-pcb_138-pcb_180-pcb_194-pcb_203,data=data_46_wscore)
-data_46_wscore37=data_46_wscore
-data_46_wscore37$y=ifelse(data_46_wscore37$y<37,1,0)
-model_l0=glm(y~.-dde-pcb_028-pcb_052-pcb_074-pcb_105-pcb_118-pcb_153-pcb_170-pcb_138-pcb_180-pcb_194-pcb_203,data=data_46_wscore37,family = "binomial")
-model_ldde=glm(y~.-pcb_028-pcb_052-pcb_074-pcb_105-pcb_118-pcb_153-pcb_170-pcb_138-pcb_180-pcb_194-pcb_203,data=data_46_wscore37,family = "binomial")
-model_lpcbs=glm(y~.-dde-pcb_052-pcb_105-pcb_118-pcb_170-pcb_138-pcb_180-pcb_194-pcb_203,data=data_46_wscore37,family = "binomial")
-anova(model_n0,model_ndde)
-anova(model_n0,model_npcbs)
-anova(model_l0,model_ldde)
-anova(model_l0,model_lpcbs)
-summary(model_ndde)
-summary(model_npcbs)
-summary(model_ldde)
-summary(model_ldde)
-#coef(model1) # dde, pcb_028, 074, 153
-#coef(model2) # dde, pcb_074, 153
+library("ordinalNet")
+train.data.ord=data_46_wscore
+train.data.ord$y <- cut(train.data.ord$y,
+                                       breaks = c(0, 31, 33, 36, 46), right = TRUE)
+ord.x=model.matrix(y~.,data=train.data.ord)
+ordlasso.model <- ordinalNet(ord.x, train.data.ord$y, family="cumulative", link="logit",
+                   parallelTerms=TRUE, nonparallelTerms=FALSE,alpha=1)
+coef(ordlasso.model) # pcb_028,074,153,138
+
+
+formula_lasso_w.ord <- as.formula(
+  "y ~ dde + pcb_074 + pcb_153 +
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center + score_education + score_income + score_occupation"
+)
+formula_lasso_o.ord <- as.formula(
+  "y ~ dde + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center + score_education + score_income + score_occupation"
+)
+
+model21_w.ord <- polr(formula_lasso_w.ord, 
+                   data = train.data.ord)
+summary(model21_w.ord)
+model21_o.ord <- polr(formula_lasso_o.ord, 
+                   data = train.data.ord)
+summary(model21_o.ord)
+anova(model21_o.ord,model21_w.ord)
 ```
 
 ## Possible Improvements
