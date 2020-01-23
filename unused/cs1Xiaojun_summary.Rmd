@@ -15,7 +15,8 @@ library(monomvn)
 library(BAS)
 library(R2jags)
 library(ggmosaic)
-Longnecker <- readRDS("./Longnecker.rds")
+library(mice)
+Longnecker <- readRDS("C:/Users/XJ/Desktop/case-study-1-team-7/Longnecker.rds")
 Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
 Longnecker$center <- as.factor(Longnecker$center) # Factorize center
 Longnecker$center <- relevel(Longnecker$center, ref = "5")
@@ -95,18 +96,34 @@ summary(age.bas3)
 We applied Horseshoe prior for all the parameters in this problem. The reason is that Horseshoe prior has the following two properties: sparsity and unbiasedness. This allows us to shrink small coefficients towards 0 and meanwhile keeping large coefficients in the model. We adapted the full model with all main effects excluding the PCBs with zero inflation. 
 
 ```{r cache=TRUE}
-full.lm<- glm(gestational_age_binary~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_153+ pcb_138 + pcb_180 + pcb_194 + pcb_203 + race + triglycerides + cholesterol+ maternal_age + smoking_status + score_education + score_income + score_occupation + center, data=data_age_na)
+full.lm<- glm(gestational_age_binary~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + pcb_118 + pcb_153+ pcb_170 + pcb_138 + pcb_180 + pcb_194 + pcb_203 + race + triglycerides + cholesterol+ maternal_age + smoking_status + score_education + score_income + score_occupation + center, family = "binomial", data=data_age_na)
 
 X = model.matrix(full.lm)
-Y = data_age_na$gestational_age
+Y = factor(data_age_na$gestational_age_binary)
 nrow(X); length(Y);
 
 #bhs.fit = bhs(X[,-1], Y, T=5000, normalize=T)
-bhs.fit = bhs(X[,-1], Y, T=5000, normalize=T, lambda2 =0.01)
+#bhs.fit = blasso(X[,-1], Y, T=10000, normalize=T, lambda2 =0.001)
+#lasso_logistic<- cv.EBglmnet(X[,-1], Y, family="binomial", prior= "lasso")
 
-beta.sim = bhs.fit$beta
-colnames(beta.sim) = colnames(X)[-1]
-quant5 = function(x) {round(quantile(x, c(0.025, 0.5, 0.975)),2)} ## 95% CI
+lasso_logistic<- EBglmnet(X[,-1], Y, family="binomial", prior= "lasso", hyperparameters = 0.01)
+lasso_logistic$fit
+colnames(X)[lasso_logistic$fit[,1]+1]
+
+
+```
+
+```{r}
+#lasso_logistic<- bayesreg(Y ~ X[,-1] , model = "binomial", prior = "horseshoe", n.samples = 5000, burnin = 1000, thin = 5, t.dof = 5, data = data_age_na)
+beta.sim<- lasso_logistic$beta
+beta.sim<- as.data.frame(beta.sim)
+
+apply(beta.sim, 1, mean)
+colnames(beta.sim) = colnames(X[,-1])
+
+#beta.sim = bhs.fit$beta
+colnames(beta.sim) = colnames(X[,-1])
+quant5 = function(x) {round(quantile(x, c(0.025, 0.975)),2)} ## 95% CI
 
 coefs_for_table<- apply(beta.sim, 2, quant5)
 knitr::kable(coefs_for_table, format = "latex")
@@ -130,7 +147,7 @@ ggplot(as.data.frame(center_fit), aes(rownames(center_fit),
 
 
 pcb = dplyr::select(data.frame(beta.sim),starts_with("pcb_"))
-pcb_fit<- cbind(lwr= apply(pcb, 2, quant5)[1,], fit= apply(pcb, 2, quant5)[2,], upr=apply(pcb, 2, quant5)[3,])
+pcb_fit<- cbind(lwr= apply(pcb, 2, quant5)[1,], fit= apply(pcb, 2, mean), upr=apply(pcb, 2, quant5)[2,])
 
 ggplot(as.data.frame(pcb_fit), aes(rownames(pcb_fit), 
   fit, size=10, group=1, ylim=max(upr)+0.8)) +
@@ -280,3 +297,169 @@ ggplot(as.data.frame(pcb_fit), aes(rownames(pcb_fit),
 ### pcbs all cover 0, but 105, 028 higher, and 074 lower
 ```
 
+Sensitivity Analysis
+
+```{r}
+Longnecker <- readRDS("C:/Users/XJ/Desktop/case-study-1-team-7/Longnecker.rds")
+Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
+Longnecker$center <- as.factor(Longnecker$center) # Factorize center
+Longnecker$center <- relevel(Longnecker$center, ref = "5")
+Longnecker[Longnecker$gestational_age > 46, "gestational_age"] <- 46 # Truncate at age == 46
+
+data_impute<- mice(data = Longnecker, m = 1, method = "pmm")
+data <- complete(data_impute)
+
+Longnecker_complete_pc=data
+Longnecker_complete_pc$earlylvl %>% 
+  table(.) %>% prop.table() %>% 
+  barplot(names.arg = c("Very preterm\n(<32)", "Moderate\n(32-3)",
+                        "Late preterm\n(<36)", "Normal--Late\n(>=37)"))
+
+
+complete_formula <- as.formula(
+  "gestational_age ~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + 
+  pcb_118 + pcb_153 + pcb_170 + pcb_138 + pcb_180 + pcb_194 + pcb_203 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center"
+)
+x <- model.matrix(complete_formula, data = Longnecker)
+miss_indices <- as.integer(row.names(x))
+Longnecker_complete <- Longnecker[miss_indices,] # Only those non-missing obs.
+PC1_pcb <- prcomp(x[,grepl("pcb", colnames(x))], scale.=TRUE)$x[,1]
+Longnecker_complete_pc <- cbind.data.frame(
+  Longnecker_complete[,!grepl("pcb", colnames(Longnecker_complete))],
+  PC1 = PC1_pcb)
+# Mutation: gestational week => categorical variables
+Longnecker_complete_pc$early <- (Longnecker_complete_pc$gestational_age < 37)
+Longnecker_complete_pc$earlylvl <- cut(Longnecker_complete_pc$gestational_age,
+                                       breaks = c(0, 31, 33, 36, 46), right = TRUE)
+
+
+pca_formula1 <- as.formula("early ~ dde + PC1 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center")
+pca_formula2 <- as.formula("earlylvl ~ dde + PC1 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center")
+# 1. Binary logistic
+llm_with_pc <- glm(pca_formula1, family = binomial, 
+                   data = Longnecker_complete_pc)
+# 2. Ordinal logistic
+olm_with_pc <- polr(pca_formula2, data = Longnecker_complete_pc)
+#
+llm_coefs <- coef(llm_with_pc)
+llm_confint <- suppressMessages(confint(llm_with_pc))
+
+llm_coefs <- cbind.data.frame(Mean = llm_coefs, llm_confint)
+#
+olm_coefs <- -1 * coef(olm_with_pc)
+olm_confint <- suppressMessages(-1 * confint(olm_with_pc))
+olm_coefs <- suppressMessages(cbind.data.frame(Mean = olm_coefs, olm_confint))
+```
+
+```{r}
+load("./lasso_logistic.rdata")
+lasso_fit<- lasso_logistic$fit
+a<- data.frame(name = colnames[1:3], beta = lasso_fit[c(1:3),3])
+colnames<- colnames(X)[lasso_logistic$fit[,1]+1]
+
+
+new<- as.data.frame(cbind(data_age_na[, colnames(data_age_na) %in% colnames], data_age_na$gestational_age_binary))
+#predict(lasso_logistic, new, interval = "prediction")
+
+yhat_G <- predict(lasso_logistic, new, bayes.avg=TRUE)
+lines(df$X, yhat_G[,1], col="blue", lwd=2.5)
+lines(df$X, yhat_G[,3], col="blue", lwd=1, lty="dashed")
+lines(df$X, yhat_G[,4], col="blue", lwd=1, lty="dashed")
+
+
+legend(1,11,c("Gaussian","Student-t (dof=5)"),lty=c(1,1),col=c("blue","darkred"),
+       lwd=c(2.5,2.5), cex=0.7)
+
+```
+
+```{r}
+Longnecker <- readRDS("C:/Users/XJ/Desktop/case-study-1-team-7/Longnecker.rds")
+Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
+Longnecker$center <- as.factor(Longnecker$center) # Factorize center
+Longnecker$center <- relevel(Longnecker$center, ref = "5")
+Longnecker[Longnecker$gestational_age > 46, "gestational_age"] <- 46 # Truncate at age == 46
+
+data_impute<- mice(data = Longnecker, m = 1, method = "pmm")
+data <- complete(data_impute)
+
+Longnecker_complete_pc=data
+Longnecker_complete_pc$earlylvl %>% 
+  table(.) %>% prop.table() %>% 
+  barplot(names.arg = c("Very preterm\n(<32)", "Moderate\n(32-3)",
+                        "Late preterm\n(<36)", "Normal--Late\n(>=37)"))
+
+
+complete_formula <- as.formula(
+  "gestational_age ~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + 
+  pcb_118 + pcb_153 + pcb_170 + pcb_138 + pcb_180 + pcb_194 + pcb_203 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center"
+)
+x <- model.matrix(complete_formula, data = Longnecker)
+miss_indices <- as.integer(row.names(x))
+Longnecker_complete <- Longnecker[miss_indices,] # Only those non-missing obs.
+PC1_pcb <- prcomp(x[,grepl("pcb", colnames(x))], scale.=TRUE)$x[,1]
+Longnecker_complete_pc <- cbind.data.frame(
+  Longnecker_complete[,!grepl("pcb", colnames(Longnecker_complete))],
+  PC1 = PC1_pcb)
+# Mutation: gestational week => categorical variables
+Longnecker_complete_pc$early <- (Longnecker_complete_pc$gestational_age < 37)
+Longnecker_complete_pc$earlylvl <- cut(Longnecker_complete_pc$gestational_age,
+                                       breaks = c(0, 31, 33, 36, 46), right = TRUE)
+
+
+pca_formula1 <- as.formula("early ~ dde + PC1 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center")
+pca_formula2 <- as.formula("earlylvl ~ dde + PC1 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center")
+# 1. Binary logistic
+llm_with_pc <- glm(pca_formula1, family = binomial, 
+                   data = Longnecker_complete_pc)
+# 2. Ordinal logistic
+olm_with_pc <- polr(pca_formula2, data = Longnecker_complete_pc)
+#
+llm_coefs <- coef(llm_with_pc)
+llm_confint <- suppressMessages(confint(llm_with_pc))
+
+llm_coefs <- cbind.data.frame(Mean = llm_coefs, llm_confint)
+#
+olm_coefs <- -1 * coef(olm_with_pc)
+olm_confint <- suppressMessages(-1 * confint(olm_with_pc))
+olm_coefs <- suppressMessages(cbind.data.frame(Mean = olm_coefs, olm_confint))
+```
+
+```{r}
+m1.cook=cooks.distance(llm_with_pc)
+cook = which(m1.cook>4/nrow(Longnecker_complete_pc))
+Longnecker_complete_pc_infl<- Longnecker_complete_pc[-cook,]
+
+llm_with_pc_infl <- glm(pca_formula1, family = binomial, 
+                   data = Longnecker_complete_pc_infl)
+
+llm_coefs_infl <- coef(llm_with_pc_infl)
+llm_confint_infl <- suppressMessages(confint(llm_with_pc_infl))
+
+sensi_logistic<- data.frame(dde_glm = c(llm_coefs[2], llm_confint[2,]), pc1_glm =  c(llm_coefs[3], llm_confint[3,]), dde_infl = c(llm_coefs_infl[2], llm_confint_infl[2,]), pc1_infl =  c(llm_coefs_infl[3], llm_confint_infl[3,]))
+
+ggplot(as.data.frame(sensi_logistic), aes(c("DDE", "PC1"), 
+  fit, size=10, group=1, ylim=max(upr)+0.8)) +
+  theme_bw(base_size=10)+ 
+  geom_point(size=2)+
+  geom_line(size=1)+
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.2, size=1)+
+  xlab("Lab")+
+  ylab("Fitted value")+
+  ggtitle("Gestational Age acorss (JAGS)")+
+  theme(axis.text.x=element_blank())+
+  geom_text(aes(label = round(lwr,2), y = lwr), vjust = 1.5, size=3) +
+  geom_text(aes(label = round(upr,2), y = upr), vjust = -0.5, size=3) +
+  geom_text(aes(label = rownames(pcb_fit), y = upr+0.5), vjust = -0.5, size=3, col="blue")
+
+
+
+ggplot(fixCIoi,aes(variable,estimate))+
+  geom_point(position=position_dodge(width=0.5),aes(shape =points))+
+  geom_errorbar(position=position_dodge(width=0.5),aes(ymin=conf.low, ymax=conf.high,color = points))+ labs(title = "Confidence Interval with/without influential points")+theme_bw()
+```
