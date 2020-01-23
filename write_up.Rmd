@@ -45,7 +45,7 @@ The main challenge is high correlation between multiple PCB variables. High corr
 As shown in figure , the dataset contains 2380 observations, with over 90% having missing values on predictor `albumin`, around 22% having missing values on socio-economic indices and 1 observation with missing value on PCB level. We drop the variable albumin and keep the complete cases in terms of remaining variables. A sensitivity analysis is also conducted to addressing the problem. As shown in Figure , strong correlations exist among PCBs, which suggest a severe multicollinearity may exist among PCBs. Figure shows a heterogeneity across centers exist. Since different centers have distinct demographic background (such as race and income as shown in Figure), we assume each center cannot borrow information from others and consider fix effects for 12 centers instead of random effect. For simplicity and save the degree of freedom, we do not consider the interaction between center and other predictors.
 
 ##### Main Results
-Based on the binary logistic regression model, the significant predictors include DDE, proxy variable for PCB levels,triglyceride and cholesterol levels, along with mean shifts in centers (...) for which subjects are primarily of black race. Estimated model effects and their 95\% confidence intervals can be found in Table 1.
+Based on the binary logistic regression model, the significant predictors include DDE, proxy variable for PCB levels, triglyceride and cholesterol levels, along with mean shifts in centers (...) for which subjects are primarily of black race. Estimated model effects and their 95\% confidence intervals can be found in Table 1.
 
 Most of the estimates have a direct scientific interpretation. For isntance, for a 1$\mu$g increase in DDE exposure, adjusted for all other variables, a mother has 0.8\% increased odds of premature delivery. Similarly, for a 1g/dL increase in triglyceride level, adjusted for other variables, a mother has 0.3\% increased odds of premature delivery. Such inference, however, is hampered for PCB, as discussed above. We do get an expected positive sign, indicating that PCB has effect oc increasing preterm delivery odds. Ordinal logistic model estimates mostly agree in the signs and magnitudes of the effects; however, cholesterol level is no longer considered a significant variable. 
 
@@ -60,12 +60,148 @@ After refitting the logistic and ordinal logistic models using the imputed data,
 
 # Discussion
 
+In addition to the frequentist methods we have described above, we also tried Bayesian methods, including Bayesian Model Averaging, Bayesian lasso, and a Hierarchical prior on center effects. Fortunately, we were able to select the same PCB covariates using Bayesian lasso, but the results for prediction is not satisfying. The confidence intervals for coefficients are large, and cover $0$, and mixing seems poor when we generated $10000$ samples. 
+
 
 \clearpage
 
 # Tables and Figures
 
 ...All tables and figures go here!...
+
+
+```{r echo=F}
+Longnecker <- readRDS("C:/Users/XJ/Desktop/case-study-1-team-7/Longnecker.rds")
+Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
+Longnecker$center <- as.factor(Longnecker$center) # Factorize center
+Longnecker$center <- relevel(Longnecker$center, ref = "5")
+Longnecker[Longnecker$gestational_age > 46, "gestational_age"] <- 46 # Truncate at age == 46
+
+data_impute<- mice(data = Longnecker, m = 1, method = "pmm")
+data <- complete(data_impute)
+
+Longnecker_complete_pc=data
+Longnecker_complete_pc$earlylvl %>% 
+  table(.) %>% prop.table() %>% 
+  barplot(names.arg = c("Very preterm\n(<32)", "Moderate\n(32-3)",
+                        "Late preterm\n(<36)", "Normal--Late\n(>=37)"))
+
+
+complete_formula <- as.formula(
+  "gestational_age ~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + 
+  pcb_118 + pcb_153 + pcb_170 + pcb_138 + pcb_180 + pcb_194 + pcb_203 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center"
+)
+x <- model.matrix(complete_formula, data = Longnecker)
+miss_indices <- as.integer(row.names(x))
+Longnecker_complete <- Longnecker[miss_indices,] # Only those non-missing obs.
+PC1_pcb <- prcomp(x[,grepl("pcb", colnames(x))], scale.=TRUE)$x[,1]
+Longnecker_complete_pc <- cbind.data.frame(
+  Longnecker_complete[,!grepl("pcb", colnames(Longnecker_complete))],
+  PC1 = PC1_pcb)
+# Mutation: gestational week => categorical variables
+Longnecker_complete_pc$early <- (Longnecker_complete_pc$gestational_age < 37)
+Longnecker_complete_pc$earlylvl <- cut(Longnecker_complete_pc$gestational_age,
+                                       breaks = c(0, 31, 33, 36, 46), right = TRUE)
+
+
+pca_formula1 <- as.formula("early ~ dde + PC1 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center")
+pca_formula2 <- as.formula("earlylvl ~ dde + PC1 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center")
+# 1. Binary logistic
+llm_with_pc <- glm(pca_formula1, family = binomial, 
+                   data = Longnecker_complete_pc)
+# 2. Ordinal logistic
+olm_with_pc <- polr(pca_formula2, data = Longnecker_complete_pc)
+#
+llm_coefs <- coef(llm_with_pc)
+llm_confint <- suppressMessages(confint(llm_with_pc))
+
+llm_coefs <- cbind.data.frame(Mean = llm_coefs, llm_confint)
+#
+olm_coefs <- -1 * coef(olm_with_pc)
+olm_confint <- suppressMessages(-1 * confint(olm_with_pc))
+olm_coefs <- suppressMessages(cbind.data.frame(Mean = olm_coefs, olm_confint))
+```
+
+
+```{r echo=F}
+m1.cook=cooks.distance(llm_with_pc)
+cook = which(m1.cook>4/nrow(Longnecker_complete_pc))
+Longnecker_complete_pc_infl<- Longnecker_complete_pc[-cook,]
+
+llm_with_pc_infl <- glm(pca_formula1, family = binomial, 
+                   data = Longnecker_complete_pc_infl)
+
+llm_coefs_infl <- coef(llm_with_pc_infl)
+llm_confint_infl <- suppressMessages(confint(llm_with_pc_infl))
+
+sensi_logistic<- data.frame(name = c("dde", "dde", "pc1", "pc1"), mean = c(llm_coefs[2], llm_coefs_infl[2], llm_coefs[3], llm_coefs_infl[3]), lower = c(llm_confint[2,1], llm_confint_infl[2,1],llm_confint[3,1], llm_confint_infl[3,1]), higher = c(llm_confint[2,2], llm_confint_infl[2,2],llm_confint[3,2], llm_confint_infl[3,2]), type = c("With Influential points", "Without Influential points", "With Influential points", "Without Influential points"))
+  
+#  dde_glm = c(llm_coefs[2], llm_confint[2,]), pc1_glm =  c(llm_coefs[3], llm_confint[3,]), dde_infl = c(llm_coefs_infl[2], llm_confint_infl[2,]), pc1_infl =  c(llm_coefs_infl[3], llm_confint_infl[3,])
+library(ggplot2)
+ggplot(sensi_logistic, aes(x = name, y = mean,ymin = lower, ymax =higher, 
+               color=type)) +
+    geom_point(position=position_dodge(width=0.5), size = 2.5) + 
+    geom_linerange(position=position_dodge(width=0.5), size =0.5) +  theme_bw() +
+    labs(colour="Type", y="Log Odds", x="") + 
+    theme(plot.title = element_text(size = 12,face="bold" )) + 
+    theme(axis.title=element_text(size="12") ,axis.text=element_text(size=12)) 
+
+
+```
+
+```{r echo=F}
+library(mice)
+library(glmnet)
+data=readRDS("C:/Users/XJ/OneDrive - Duke University/case-study-1-team-7/Longnecker.rds")
+data=data%>%dplyr::select(gestational_age,dde:cholesterol,center)
+data_46=data%>%mutate(y=gestational_age)
+data_46[data_46$y>46,"y"]=46
+data_46=data_46%>%dplyr::select(-gestational_age,-albumin)%>%mutate(race=factor(race),center=factor(center))
+
+data_impute<- mice(data = data_46, m = 1, method = "pmm")
+data <- complete(data_impute)
+
+train.data=data
+
+set.seed(123)
+x <- model.matrix(y~., train.data)[,-1]
+# Convert the outcome (class) to a numerical variable
+y <- ifelse(train.data$y<37,1,0)
+train.data$y=y
+cv.lasso2 <- cv.glmnet(x, y, alpha = 1,family="binomial")
+# Fit the final model on the training data
+model2 <- glmnet(x, y, alpha = 1,family="binomial",
+                lambda = cv.lasso2$lambda[27])
+
+
+formula_lasso_w <- as.formula(
+  "y ~ dde + pcb_074 + pcb_153 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center + score_education + score_income + score_occupation"
+)
+
+model21_w <- glm(formula_lasso_w, family = binomial, 
+                   data = train.data)
+
+lasso_coef_impute <- coef(model21_w)
+lasso_confint_impute <- suppressMessages(confint(model21_w))
+lassso_coefs_impute <- cbind.data.frame(Mean = lasso_coef, lasso_confint)
+
+
+sensi_logistic<- data.frame(name = c("dde", "dde", "pcb074", "pcb074", "pcb153", "pcb153"), mean = c(lassso_coefs[2,1], lassso_coefs_impute[2,1], lassso_coefs[3,1], lassso_coefs_impute[3,1], lassso_coefs[4,1], lassso_coefs_impute[4,1]), lower = c(lassso_coefs[2,2], lassso_coefs_impute[2,2], lassso_coefs[3,2], lassso_coefs_impute[3,2], lassso_coefs[4,2], lassso_coefs_impute[4,2]), higher = c(lassso_coefs[2,3], lassso_coefs_impute[2,3], lassso_coefs[3,3], lassso_coefs_impute[3,3], lassso_coefs[4,3], lassso_coefs_impute[4,3]), type = c("missing", "impute", "missing", "impute", "missing", "impute"))
+
+ggplot(sensi_logistic, aes(x = name, y = mean,ymin = lower, ymax =higher, 
+               color=type)) +
+    geom_point(position=position_dodge(width=0.5), size = 2.5) + 
+    geom_linerange(position=position_dodge(width=0.5), size =0.5) +  theme_bw() +
+    labs(colour="Type", y="Log Odds", x="") + 
+    theme(plot.title = element_text(size = 12,face="bold" )) + 
+    theme(axis.title=element_text(size="12") ,axis.text=element_text(size=12)) 
+
+```
+
 
 \clearpage
 
