@@ -36,7 +36,7 @@ gg_miss_upset(data)
 - Long left tail of `gestational age` + goal -> categorical variable
 
 ```{r hist, echo=FALSE, message=FALSE, warning=FALSE,cache=TRUE}
-data_46=data_#%>%mutate(y=gestational_age)
+data_46=data#%>%mutate(y=gestational_age)
 data_46[data_46$gestational_age>46,"gestational_age"]=46
 data_46=data_46%>%select(-albumin)%>%mutate(race=factor(race),center=factor(center))
 
@@ -57,10 +57,10 @@ data_46 %>%
 - Large correlation among covariates especially for PCBs 
   -> PCA vs Variable Selection
 
-```{r corrplot, echo=FALSE,cache=TRUE}
+```{r corrplot, echo=FALSE,cache=TRUE,fig.width=3.3}
 data_ = data %>% mutate(race=as.numeric(race))
 M2 = cor(as.matrix(na.omit(data_%>%select(pcb_028:pcb_203))))
-corrplot.mixed(M2,number.cex=2, upper="ellipse")
+corrplot.mixed(M2,number.cex=0.7, upper="ellipse",tl.cex=0.5)
 #M3 = cor(as.matrix(na.omit(data_)))
 #M3[1,-1]
 #cordf=data.frame(cor=M3[1,-1],var=names(M3[1,-1]))
@@ -176,7 +176,7 @@ colnames(olm_coefs) <- colnames(olm_coefs)[c(1,3,2)]
  
  - 95\% confidence interval estimates for significant coefficients
  
-```{r, echo=F, include=T}
+```{r, echo=F, include=T,cache=T}
 knitr::kable(llm_coefs[c("dde", "PC1", "triglycerides", "cholesterol"),], format = "latex", digits = 3,
              caption = "Logistic")
 knitr::kable(olm_coefs[c("dde", "PC1", "triglycerides"),], format = "latex", digits = 3,
@@ -189,7 +189,7 @@ knitr::kable(olm_coefs[c("dde", "PC1", "triglycerides"),], format = "latex", dig
 
  - "Baseline" log odds +/- 2 standard errors, on probability scale, is estimated for each category by the ordered logistic model.
 
-```{r, echo=F, message=F, include=T}
+```{r, echo=F, message=F, include=T,cache=T}
 blo <- summary(olm_with_pc)$coefficients[20:22, "Value"] # baseline log-odds
 bprobs <- exp(blo) / (1+exp(blo))
 # Transforming +/- 2SE to probability scale
@@ -217,7 +217,7 @@ knitr::kable(cbind.data.frame("Lower bound" = probs_lb,
 
 ## Diagnostic Plots
 
-```{r, echo=F, include=T}
+```{r, echo=F, include=T,cache=T}
 par(mfrow = c(1, 2))
 binnedplot(fitted(llm_with_pc),
            residuals(llm_with_pc, type = "response"),
@@ -283,7 +283,7 @@ lassso_coefs <- cbind.data.frame(Mean = lasso_coef, lasso_confint)
 ```
 
 
-## ordinal logistic regression
+## Estimated Effects (Variable Selection)
 
 ```{r ordlasso, cache=T,echo=F}
 library("ordinalNet")
@@ -311,14 +311,14 @@ model21_o.ord <- polr(formula_lasso_o.ord,
                    data = train.data.ord)
 ```
 
-```{r cilassoord, include=FALSE}
+```{r cilassoord, include=FALSE,cache=T}
 olasso_coefs <- -1 * coef(model21_w.ord)
 olasso_confint <- suppressMessages(-1 * confint(model21_w.ord)[,c(2,1)])
 olasso_coefs <- suppressMessages(cbind.data.frame(Mean = olasso_coefs, olasso_confint))
 colnames(olasso_coefs) <- colnames(olasso_coefs)[c(1,3,2)]
 ```
 
-```{r lassotest,include=FALSE}
+```{r lassotest,include=FALSE,cache=T}
 a1=anova(model21_o,model21_w,test="LRT")[2,c(4,3,5)]
 a2=anova(model21_o.ord,model21_w.ord)[2,c(6,5,7)]
 colnames(a1)=c("Deviance","Df","Pr(>Chi)")
@@ -328,16 +328,19 @@ rownames(tbl_test)=NULL
 ```
 
 
-```{r lassores, echo=F, include=T}
+```{r lassores, echo=F, include=T,cache=T}
 knitr::kable(lassso_coefs[c("dde", "pcb_074", "pcb_153"),], format = "latex", digits = 3,
              caption = "Logistic")
 knitr::kable(olasso_coefs[c("dde", "pcb_074", "pcb_153"),], format = "latex", digits = 3,
              caption = "Ordinal logistic")
-knitr::kable(tbl_test, format = "latex", digits = 3,
-             caption = "Ordinal logistic")
-
 ```
 
+## Estimated Effects (Variable Selection)
+
+```{r lasso_test, echo=F, include=T,cache=T}
+knitr::kable(tbl_test, format = "latex", digits = 3,
+             caption = "Testing of PCB for logistic and Ordinal logistic")
+```
 
 ## Possible Improvements
 
