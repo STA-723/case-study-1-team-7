@@ -324,7 +324,7 @@ a2=anova(model21_o.ord,model21_w.ord)[2,c(6,5,7)]
 colnames(a1)=c("Deviance","Df","Pr(>Chi)")
 colnames(a2)=c("Deviance","Df","Pr(>Chi)")
 tbl_test=rbind(a1,a2)
-
+rownames(tbl_test)=NULL
 ```
 
 
@@ -333,7 +333,8 @@ knitr::kable(lassso_coefs[c("dde", "pcb_074", "pcb_153"),], format = "latex", di
              caption = "Logistic")
 knitr::kable(olasso_coefs[c("dde", "pcb_074", "pcb_153"),], format = "latex", digits = 3,
              caption = "Ordinal logistic")
-anova(model21_o,model21_w,test="LRT")
+knitr::kable(tbl_test, format = "latex", digits = 3,
+             caption = "Ordinal logistic")
 
 ```
 
