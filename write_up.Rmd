@@ -40,7 +40,7 @@ As shown in figure , the dataset contains 2380 observations, with over 90% havin
 
 ##### Main Results
 
-We consider 
+For the logistic regression, we consider 37 weeks as a cutoff for preterm delivery
 
 
 
