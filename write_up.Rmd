@@ -33,8 +33,14 @@ The third challenge is modeling heterogeneity across different centers, which is
 #### Results
 
 ##### Exploratory Data Analysis
+
 ##### Main Results
+
 ##### Sensitivity Analysis
+
+As introduced above, the models selected by lasso regression involve the score variables about income, education and occupation. With about 20% missingness of score variables, we decided to impute the score variables, and refit the models to see whether there is signiciant change in our result. The method of imputation is called Predictive Mean Matching, which extracts the information from the observations without missing values, and use that to make assumption about the missing entry. Specially, for each missing entry, the method forms a set of complete observations with the predicted values that are close to the predcition of that, and randomly draws the observed value of an obervation to replace the missing value.
+
+After refitting the logistic and ordinal logistic models using the imputed data, we observed that there is almost no change for the estimates of the coefficient for DDE, PCB_074 and PCB_153. At the same time, the confidence intervals for those coefficients narrow a little bit, which match up our intuition. Thus, our models generated based on a lasso selection seems to be robust. 
 
 
 #### Discussion
