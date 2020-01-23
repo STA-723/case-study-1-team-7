@@ -1,16 +1,27 @@
 ---
 title: "Investigating the Effects of DDE and PCB Exposure on Premature Delivery"
-author: "Youngsoo Baek, Yunran Chen, Xiaojun Zheng"
-date: "Jan. 23rd, 2020"
-output: pdf_document
+author: "Youngsoo Baek, Yunran Chen and Xiaojun Zheng"
+fontsize: "11pt"
+output:
+  pdf_document: 
+        latex_engine: xelatex
+  html_document:
+    keep_md: yes
+    fig_caption: TRUE
+header-includes:  
+  \usepackage{float} 
+  \floatplacement{figure}{H}
 ---
 
-# Executive Summary
-We study the association between exposure to Dichlorodiphenyldichloroethylene (DDE) and 12 Polychlorinated Biophenyl (PCB) members and premature delivery using observational study data. To address high correlation within PCB members that leads to unstable estimates in standard linear regression methods, we fit a logistic regression model that includes a weighted sum of standardized PCB levels instead of all PCB members, along with variable selection and Bayesian methods. We find evidence that higher exposure to both DDE and PCB is associated with higher odds of preterm delivery.
+#### Executive Summary
 
-# Introduction
+We study the association between exposure to Dichlorodiphenyldichloroethylene (DDE) and 12 Polychlorinated Biophenyl (PCB) members and premature delivery using observational study data. To address high correlation within PCB members that leads to unstable estimates in standard linear regression methods, we fit a logistic regression model that includes a weighted sum of standardized PCB levels instead of all PCB members, along with variable selection based on Lasso. We find evidence that higher exposure to both DDE and PCB is associated with higher odds of preterm delivery. Our result is relative robust in terms of influential point and missing data imputation as suggested by the sensitivity analysis.
 
-# Materials and Methods
+#### Introduction
+
+
+#### Materials and Methods
+
 We consider a class of linear regression models that can model the linear association between the probability of preterm delivery and predictors of interest on some suitable scale. In particular, we consider a logistic regression model, where the log-odds of premature delivery are modeled by a linear combination of DDE and PCB levels, adjusted for observed demographic predictors including race, age, and smoking status, and triglyceride and cholesterol levels. While binary logistic regression is a standard method in modeling categorical response, we suffer a loss of information on different delivery periods, which does contain information about different levels of risk on the infants' health. An ordinal logistic regression can extend the response to have multiple ordered categories, with an assumption that the odds corresponding to each of these levels are proportional. We discuss and fit both models below. Gestational ages are binned to reflect increasing levels of risk prescribed by NIH for ordered logistic model. 
 
 The first main challenge for modeling the data is missing predictors. We have a single subject for whom no PCB levels are measured, which is excluded from the analysis. More severely, three score variables corresponding to the subjects' income, occupation, and education have substantial number of missing values. 
@@ -19,10 +30,16 @@ The second challenge is high correlation between multiple PCB variables. High co
 
 The third challenge is modeling heterogeneity across different centers, which is important since the data show they can have widely different racial distribution. Commonly, a modeler decides to estimate the effect of center as fixed or random. By the former, the heterogeneity of center is modeled as a shift in the average response adjusted for the other variables, and is estimated using subjects only within the center. By the latter, it is modeled as a variance component between different centers that have a common underlying distribution, and is estimated using partial information from all subjects. 
 
-# Results
+#### Results
 
-# Discussion
-...
+##### Exploratory Data Analysis
+##### Main Results
+##### Sensitivity Analysis
+
+
+#### Discussion
+
+
 \clearpage
 
 # Tables and Figures
