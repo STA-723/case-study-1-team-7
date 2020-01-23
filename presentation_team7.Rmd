@@ -32,8 +32,8 @@ gg_miss_upset(data)
 
 ## Noisy measurement
 
-- Zero-inflation on some of PCBs -> PCA vs Variable Selection
-- Long left tail of `gestational age` -> categorical variable
+- Zero-inflation on some of PCBs 
+- Long left tail of `gestational age` + goal -> categorical variable
 
 ```{r hist, echo=FALSE, message=FALSE, warning=FALSE,cache=TRUE}
 data_46=data_#%>%mutate(y=gestational_age)
@@ -54,7 +54,8 @@ data_46 %>%
 ## Multicollinearity
 
 - Weak correlation between covariates and `gestational age` (less than 0.3)
-- Large correlation among covariates especially for PCBs
+- Large correlation among covariates especially for PCBs 
+  -> PCA vs Variable Selection
 
 ```{r corrplot, echo=FALSE,cache=TRUE}
 data_ = data %>% mutate(race=as.numeric(race))
@@ -68,7 +69,8 @@ corrplot.mixed(M2,number.cex=2, upper="ellipse")
 
 ## Heterogeneity across Centers: fix effects
 
-The demographic background (race, income, etc.) vary across center. -> fix effects
+The demographic background (race, income, etc.) vary across center. 
+-> fix effects vs random effect
 
 ```{r heter, echo=FALSE, cache=TRUE}
 ggplot(data%>%filter(center%in%c(5,10,15,31,45,60)),mapping = aes(x=as.factor(center),y=gestational_age,color=race))+geom_boxplot()+theme_bw()
@@ -231,110 +233,11 @@ boxplot(est_probs_llm ~ Longnecker_complete_pc$early,
 est_probs_olm <- predict(olm_with_pc, type = "probs")
 ```
 
-## Further Discussion: PCBs
+## Further Discussion: Select important PCBs
 
-- Aggregating information of all the PCB's (PCA -> hard to interpret)
-- Selecting representative PCB's (Frequentist and Bayesian variable selection)
-  - Bayesian Model Averaging 
-  - Bayesian Lasso (PCB 074, 153)
-  - Horseshoe Prior
-  - Lasso (Logistic: dde, pcb_074, 153) -> 'consistent' with the previous model
-
-```{r}
-load("./lasso_logistic.rdata")
-lasso_fit<- lasso_logistic$fit
-a<- data.frame(name = colnames[1:3], beta = lasso_fit[c(1:3),3])
-
-knitr::kable(a, format = "latex", digits = 3,
-             caption = "Logistic")
-```
-
-
-```{r blasso}
-load("./lasso_logistic.rdata")
-lasso_fit<- lasso_logistic$fit
-a<- data.frame(name = colnames[1:3], beta = lasso_fit[c(1:3),3])
-colnames<- colnames(X)[lasso_logistic$fit[,1]+1]
-
-
-new<- as.data.frame(cbind(data_age_na[, colnames(data_age_na) %in% colnames], data_age_na$gestational_age_binary))
-#predict(lasso_logistic, new, interval = "prediction")
-
-yhat_G <- predict(lasso_logistic, new, bayes.avg=TRUE)
-lines(df$X, yhat_G[,1], col="blue", lwd=2.5)
-lines(df$X, yhat_G[,3], col="blue", lwd=1, lty="dashed")
-lines(df$X, yhat_G[,4], col="blue", lwd=1, lty="dashed")
-
-
-legend(1,11,c("Gaussian","Student-t (dof=5)"),lty=c(1,1),col=c("blue","darkred"),
-       lwd=c(2.5,2.5), cex=0.7)
-
-
-colnames(beta.sim) = colnames(X)[-1]
-quant5 = function(x) {round(quantile(x, c(0.025, 0.5, 0.975)),2)} ## 95% CI
-pcb = dplyr::select(data.frame(beta.sim),starts_with("pcb_"))
-pcb_fit<- cbind(lwr= apply(pcb, 2, quant5)[1,], fit= apply(pcb, 2, quant5)[2,], upr=apply(pcb, 2, quant5)[3,])
-
-ggplot(as.data.frame(pcb_fit), aes(rownames(pcb_fit), 
-  fit, size=10, group=1, ylim=max(upr)+0.8)) +
-  geom_point(size=2)+
-  geom_line(size=1)+
-  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.2, size=1)+
-  xlab("Lab")+
-  ylab("Fitted value")+
-  ggtitle("Gestational Age acorss (Lasso)")+
-  theme(axis.text.x=element_blank())+
-  geom_text(aes(label = round(lwr,2), y = lwr), vjust = 1.5, size=3) +
-  geom_text(aes(label = round(upr,2), y = upr), vjust = -0.5, size=3) +
-  geom_text(aes(label = rownames(pcb_fit), y = upr+0.5), vjust = -0.5, size=3, col="blue")
-
-exp(quant5(beta.sim[,1]))-1
-```
- 
-```{r blasso0}
-load("./beta.sim_blasso0.rdata")
-colnames(beta.sim) = colnames(X)[-1]
-quant5 = function(x) {round(quantile(x, c(0.025, 0.5, 0.975)),2)} ## 95% CI
-pcb = dplyr::select(data.frame(beta.sim),starts_with("pcb_"))
-pcb_fit<- cbind(lwr= apply(pcb, 2, quant5)[1,], fit= apply(pcb, 2, quant5)[2,], upr=apply(pcb, 2, quant5)[3,])
-
-ggplot(as.data.frame(pcb_fit), aes(rownames(pcb_fit), 
-  fit, size=10, group=1, ylim=max(upr)+0.8)) +
-  geom_point(size=2)+
-  geom_line(size=1)+
-  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.2, size=1)+
-  xlab("Lab")+
-  ylab("Fitted value")+
-  ggtitle("Gestational Age acorss (Lasso)")+
-  theme(axis.text.x=element_blank())+
-  geom_text(aes(label = round(lwr,2), y = lwr), vjust = 1.5, size=3) +
-  geom_text(aes(label = round(upr,2), y = upr), vjust = -0.5, size=3) +
-  geom_text(aes(label = rownames(pcb_fit), y = upr+0.5), vjust = -0.5, size=3, col="blue")
-
-exp(quant5(beta.sim[,1]))-1
-```
-
-```{r, cache=T,echo=F,eval=F}
-# switch to T to include; I don't have your file!!
-# load("./HP_pcb.rdata")
-# quant5 = function(x) {round(quantile(x, c(0.025, 0.5, 0.975)),2)} ## 95% CI
-# pcb = dplyr::select(data.frame(beta.sim),starts_with("pcb_"))
-# pcb_fit<- cbind(lwr= apply(pcb, 2, quant5)[1,], fit= apply(pcb, 2, quant5)[2,], upr=apply(pcb, 2, quant5)[3,])
-# 
-# ggplot(as.data.frame(pcb_fit), aes(rownames(pcb_fit), 
-#   fit, size=10, group=1, ylim=max(upr)+0.8)) +
-#   geom_point(size=2)+
-#   geom_line(size=1)+
-#   geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.2, size=1)+
-#   xlab("Lab")+
-#   ylab("Fitted value")+
-#   ggtitle("Gestational Age acorss (JAGS)")+
-#   theme(axis.text.x=element_blank())+
-#   geom_text(aes(label = round(lwr,2), y = lwr), vjust = 1.5, size=3) +
-#   geom_text(aes(label = round(upr,2), y = upr), vjust = -0.5, size=3) +
-#   geom_text(aes(label = rownames(pcb_fit), y = upr+0.5), vjust = -0.5, size=3, col="blue")
-```
-
+- Aggregating information of all the PCBs (PCA -> hard to interpret)
+- Selecting representative PCB's (Frequentist and Bayesian LASSO)
+  - Lasso (DDE, PCB 074, 153 + demographic covariates)
 
 ```{r lasso, cache=T,echo=F, eval=T}
 library("glmnet")
@@ -345,7 +248,6 @@ data_46[data_46$y>46,"y"]=46
 data_46=data_46%>%dplyr::select(-gestational_age,-albumin)%>%mutate(race=factor(race),center=factor(center))
 data_46_wscore=data_46%>%na.omit()
 set.seed(123)
-
 train.data=data_46_wscore
 x <- model.matrix(y~., train.data)[,-1]
 # Convert the outcome (class) to a numerical variable
@@ -355,12 +257,8 @@ cv.lasso2 <- cv.glmnet(x, y, alpha = 1,family="binomial")
 # Fit the final model on the training data
 model2 <- glmnet(x, y, alpha = 1,family="binomial",
                 lambda = cv.lasso2$lambda[27])
-
-plot(cv.lasso2) # logistic
-cv.lasso2$lambda
-cv.lasso2$lambda.min
-which(cv.lasso2$lambda==cv.lasso2$lambda.min)
-coef(model2) # dde, pcb_074, 153; the one with min mse, if relax the penalty a little bit, will include all the demographic characters
+#plot(cv.lasso2) # logistic
+#coef(model2) # dde, pcb_074, 153; the one with min mse, if relax the penalty a little bit, will include all the demographic characters
 ```
 
 ```{r glmlasso, cache=T,echo=F, eval=T}
@@ -374,37 +272,28 @@ formula_lasso_o <- as.formula(
 )
 model21_w <- glm(formula_lasso_w, family = binomial, 
                    data = train.data)
-summary(model21_w)
 model21_o <- glm(formula_lasso_o, family = binomial, 
                    data = train.data)
-anova(model21_o,model21_w,test="LRT")
 ```
 
-## inference on lasso
-
-```{r}
-library("selectiveInference")
-model2min <- glmnet(x, y, alpha = 1,family="binomial",
-                lambda = cv.lasso2$lambda.min)
-
-beta=coef(model2min)
-X=model.matrix(y~.,data=train.data)
-beta=as.matrix(beta)
-cis=fixedLassoInf(x=X[,-1], y=(train.data$y), beta=beta, lambda=cv.lasso2$lambda.min,family = "binomial",alpha=0.05)
-cis
+```{r cilassolog, include=FALSE}
+lasso_coef <- coef(model21_w)
+lasso_confint <- suppressMessages(confint(model21_w))
+lassso_coefs <- cbind.data.frame(Mean = lasso_coef, lasso_confint)
 ```
 
-## ordinal logistic regression.
 
-```{r vs, cache=T,echo=F}
+## ordinal logistic regression
+
+```{r ordlasso, cache=T,echo=F}
 library("ordinalNet")
 train.data.ord=data_46_wscore
 train.data.ord$y <- cut(train.data.ord$y,
                                        breaks = c(0, 31, 33, 36, 46), right = TRUE)
 ord.x=model.matrix(y~.,data=train.data.ord)
-ordlasso.model <- ordinalNet(ord.x, train.data.ord$y, family="cumulative", link="logit",
-                   parallelTerms=TRUE, nonparallelTerms=FALSE,alpha=1)
-coef(ordlasso.model) # pcb_028,074,153,138
+#ordlasso.model <- ordinalNet(ord.x, train.data.ord$y, family="cumulative", link="logit",
+#                   parallelTerms=TRUE, nonparallelTerms=FALSE,alpha=1)
+#coef(ordlasso.model) # pcb_028,074,153,138
 
 
 formula_lasso_w.ord <- as.formula(
@@ -418,12 +307,36 @@ formula_lasso_o.ord <- as.formula(
 
 model21_w.ord <- polr(formula_lasso_w.ord, 
                    data = train.data.ord)
-summary(model21_w.ord)
 model21_o.ord <- polr(formula_lasso_o.ord, 
                    data = train.data.ord)
-summary(model21_o.ord)
-anova(model21_o.ord,model21_w.ord)
 ```
+
+```{r cilassoord, include=FALSE}
+olasso_coefs <- -1 * coef(model21_w.ord)
+olasso_confint <- suppressMessages(-1 * confint(model21_w.ord)[,c(2,1)])
+olasso_coefs <- suppressMessages(cbind.data.frame(Mean = olasso_coefs, olasso_confint))
+colnames(olasso_coefs) <- colnames(olasso_coefs)[c(1,3,2)]
+```
+
+```{r lassotest,include=FALSE}
+a1=anova(model21_o,model21_w,test="LRT")[2,c(4,3,5)]
+a2=anova(model21_o.ord,model21_w.ord)[2,c(6,5,7)]
+colnames(a1)=c("Deviance","Df","Pr(>Chi)")
+colnames(a2)=c("Deviance","Df","Pr(>Chi)")
+tbl_test=rbind(a1,a2)
+
+```
+
+
+```{r lassores, echo=F, include=T}
+knitr::kable(lassso_coefs[c("dde", "pcb_074", "pcb_153"),], format = "latex", digits = 3,
+             caption = "Logistic")
+knitr::kable(olasso_coefs[c("dde", "pcb_074", "pcb_153"),], format = "latex", digits = 3,
+             caption = "Ordinal logistic")
+anova(model21_o,model21_w,test="LRT")
+
+```
+
 
 ## Possible Improvements
 
