@@ -341,7 +341,7 @@ knitr::kable(tbl_test, format = "latex", digits = 3,
 
 ## Sensitivity Analysis
 
-```{r cache=TRUE}
+```{r echo=FALSE, cache=TRUE}
 Longnecker <- readRDS("./Longnecker.rds")
 Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
 Longnecker$center <- as.factor(Longnecker$center) # Factorize center
@@ -352,11 +352,6 @@ data_impute<- mice(data = Longnecker, m = 1, method = "pmm")
 data <- complete(data_impute)
 
 Longnecker_complete_pc=data
-Longnecker_complete_pc$earlylvl %>% 
-  table(.) %>% prop.table() %>% 
-  barplot(names.arg = c("Very preterm\n(<32)", "Moderate\n(32-3)",
-                        "Late preterm\n(<36)", "Normal--Late\n(>=37)"))
-
 
 complete_formula <- as.formula(
   "gestational_age ~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + 
@@ -419,6 +414,8 @@ ggplot(sensi_logistic, aes(x = name, y = mean,ymin = lower, ymax =higher,
     labs(colour="Type", y="Log Odds", x="") + 
     theme(plot.title = element_text(size = 12,face="bold" )) + 
     theme(axis.title=element_text(size="12") ,axis.text=element_text(size=12))
+```
+
 ## Possible Improvements
 
   - Pooling heterogeneous effects across centers
