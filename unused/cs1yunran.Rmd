@@ -40,6 +40,7 @@ data%>%filter(gestational_age<=42)%>%group_by(center)%>%summarise(y=mean(gestati
 ```{r}
 vis_miss(data)
 gg_miss_upset(data)
+ggsave("missing.jpg")
 gg_miss_var(data,facet = center)
 ```
 
@@ -103,7 +104,7 @@ ggplot(datapcb,aes(x=pcb,y=dose,color=race))+geom_boxplot()+theme_bw()+facet_wra
 ## linear mixed effect model
 
 
-```{r}
+```{r echo=FALSE}
 data_46=data%>%mutate(y=gestational_age)
 data_46[data_46$y>46,"y"]=46
 data_46=data_46%>%select(-gestational_age,-albumin)%>%mutate(race=factor(race),center=factor(center))
