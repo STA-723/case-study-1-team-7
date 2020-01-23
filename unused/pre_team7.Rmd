@@ -139,7 +139,16 @@ Longnecker_complete_pc <- cbind.data.frame(
   PC1 = PC1_pcb)
 lm_with_pc <- lm(gestational_age ~ ., data = Longnecker_complete_pc)
 Longnecker_complete_pc$early <- (Longnecker_complete_pc$gestational_age < 37)
+# 
+# BEFORE 32 wks == VERY/EXTREMELY preterm (no sample of latter level)
+# BETWEEN 32 and 34 wks == Moderately preterm (much less risk involved for the infant)
+#
+Longnecker_complete_pc$earlylvl <- cut(Longnecker_complete_pc$gestational_age,
+                                       breaks = c(0, 31, 36, 46), right = TRUE)
+
 llm_with_pc <- glm(early ~ . - gestational_age, family = binomial, data = Longnecker_complete_pc)
+#
+olm_with_pc <- polr(earlylvl ~ . - early - gestational_age, data = Longnecker_complete_pc)
 lm_coefs <- c( coef(lm_with_pc)[c("dde", "PC1")],
    "center5" = as.numeric(coef(lm_with_pc)[1]),
    coef(lm_with_pc)[1] + coef(lm_with_pc)[ grepl("center", names(coef(lm_with_pc))) ] )
@@ -156,6 +165,8 @@ suppressMessages(llm_confint <- rbind(confint(llm_with_pc)[c("dde", "PC1"),],
                       confint(llm_with_pc)[grepl("center", rownames(confint(llm_with_pc))),] ) )
 lm_coefs <- cbind.data.frame(Mean = lm_coefs, lm_confint)
 llm_coefs <- cbind.data.frame(Mean = llm_coefs, llm_confint)
+
+
 ```
 
 95\% confidence interval for Gaussian regression:

@@ -1,0 +1,18 @@
+---
+title: "Investigating the Effects of DDE and PCB Exposure on Pre-Term Delivery"
+author: "Youngsoo Baek, Yunran Chen, Xiaojun Zheng"
+date: "Jan. 23rd, 2020"
+output: pdf_document
+---
+
+# Executive Summary
+
+# Introduction
+
+# Materials and Methods
+
+# Results
+
+# Discussion
+
+# Appendix
