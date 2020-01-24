@@ -18,51 +18,44 @@ knitr::opts_chunk$set(fig.align='center')
 Longnecker <- readRDS("Longnecker.rds")
 ```
 
-
 #### Executive Summary
-
-We study the association between exposure to Dichlorodiphenyldichloroethylene (DDE) and 12 Polychlorinated Biophenyl (PCB) members and the risk of premature delivery. To address the collinearity caused by PCB members, we consider a two-stage modeling process to hybrid Principal Component Analysis (PCA) to binary/ordinal logistic regression. As an alternative, we also consider selecting representative PCBs based on lasso in the first stage. Both models suggest higher exposure to both DDE and PCB is associated with higher odds of preterm delivery.  
-
-The project studied the association between exposure to Dichlorodiphenyldichloroethylene (DDE) and 12 Polychlorinated Biophenyl (PCB) members and the risk of premature delivery. Because of the collinearity caused by PCB members, two approaches applied follow a two-stage modeling process. One is to use hybrid Principal Component Analysis (PCA) to binary/ordinal logistic regression, and the other is to select important PCBs based on lasso regression, and then fit the binary/ordinal logistic model. The analysis of both methods suggest that higher exposure to both DDE and PCB is associated with higher odds of preterm delivery.
+We study the association between exposure to Dichlorodiphenyldichloroethylene (DDE) and 12 Polychlorinated Biophenyl (PCB) members and the risk of premature delivery. To address the collinearity caused by PCB members, we consider both a logit regression model, either adjusted for a weighted sum of standardized PCB levels, or for a few PCB variables selected through LASSO regression. Both models suggest higher exposure to both DDE and PCB is associated with higher odds of preterm delivery.  
 
 #### Introduction
+Dichlorodiphenyltrichloroethane (DDT) and Polychlorinated biphenyl (PCB) were proven to be toxic, leading to a ban on use in United States in 1972 and 1978, respectively. We are interested in whether and how the two chemicals relate to premature delivery risk. World Health Organization (WHO) defines preterm births as babies born alive before 37 weeks of pregnancy are completed. Different delivery times correspond to subsantially different levels of risk for infants' health. World Health Organization mentions three subcategories of preterm birth: extremely pre-term (<28 weeks), very preterm (28 to 32 weeks), and moderate to late preterm (32 to 37 weeks). 
 
-Dichlorodiphenyltrichloroethane (DDT) and Polychlorinated biphenyl (PCB) were proved to be toxic, leading to a ban on use in United States in 1972, 1978 respectively. We are interested in whether and how the DDE and PCB relate to the risk of premature delivery adjusting other possible confounders such as physical background, demographic background and socio-economic status. The data comes from a subsample of the US Collaborative Perinatal Project (CPP) conducted by Longecker et al. (2001), which contains concentration doses for DDE and PCBs as well as the gestational ages of 2380 women in 12 medical centers. Other potential predictors are provided such as triglycerides and cholesterol (fat chemicals), smoking status and demographic characteristics such as race, age and socio-economic index.
+The dataset considered is a subsample of the US Collaborative Perinatal Project (CPP) conducted by Longecker et al. (2001), which contains concentration doses for DDE and PCBs as well as the gestational ages of 2,380 women in 12 medical centers. Other observed features include triglycerides and cholesterol, which are relevant since the chemicals are lipophylic; smoking status; and demographic characteristics, including race, age and socio-economic index. Due to unavailability of controlled experimental study, we aim to use generalized linear regression models to adjust for as many predictors as possible and infer whether there exists significant association between exposure to DDE/PCB and increased preterm delivery risks. 
 
 #### Materials and Methods
+In order to model the linear association between the probability of preterm delivery and predictors of interest on some suitable scale, we consider a logistic regression model, where the log-odds of premature delivery are modeled by a linear combination of DDE and PCB levels. Binary logit model, a standard classification method, suffers loss of information on different delivery periods. Therefore, we bin the gestational age to reflect increasing levels of risk. In particular, the response are binned into: very preterm (27 to 32 weeks); moderately preterm (32 to 33 weeks); late preterm (34 to 36 weeks); and normal deliveries (37 to 46 weeks).
 
-In order to model the linear association between the probability of preterm delivery and predictors of interest on some suitable scale, We considered a logistic regression model, where the log-odds of premature delivery are modeled by a linear combination of DDE and PCB levels, and we defined a birth that takes place less than 37 weeks as preterm delievery. While binary logistic regression is a standard method, we suffer loss of information on different delivery periods, which contains information about different levels of risk on the infants' health. Therefore, we binned the gestational ages to reflect increasing levels of risk prescribed by NIH and consider an ordinal logistic regression as follows:
-$${\rm Pr}(Y_i\leq k|\mathbf{x}_i) = {\rm logit}^{-1}(\alpha_{k} + \mathbf{x}_i^T\beta)\iff {\rm Odds}(Y_i \leq k|\mathbf{x}_i) = e^{\alpha_k} e^{\mathbf{x}_i^T\beta},$$
-where $Y_i$ with four possible values, $k=1,2,3,4$, each corresponding to different categories of preterm delivery with increasing level of infant health risk. We considered four categories with 32, 36, 37 as thresholds to bin the gestational age into four categories: "very preterm", "moderate", "late preterm" and "normal-late". The model comes with an assumption that the odds corresponding to each of these levels are proportional. The data exhibit some indication that the model assumption can be violated, which will be discussed in the Discussion Section. (i.e., DDE is observed to have stronger association with premature delivery, as we move from late preterm (nearly around 37-week threshold) to earlier delivery periods.)
+The ordered logit model, where categories are denoted by $k=1,2,3,4$, ordered from normal to very preterm, can be expressed as follows:
+$${\rm Pr}(Y_i\leq k|\mathbf{x}_i) = {\rm logit}^{-1}(\alpha_{k} + \mathbf{x}_i^T\beta)\iff {\rm Odds}(Y_i \leq k|\mathbf{x}_i) = e^{\alpha_k} e^{\mathbf{x}_i^T\beta}.$$
+The important assumption of this model, which extends the binary logit model, is that the odds for different categories are proportional by a constant determined by fixed effects. The data exhibit some indication that the model assumption can be violated, an issue we revisit in Section 5.
 
-The main challenge is high correlation between multiple PCB variables. High correlation between predictors in the regression is known to inflate standard errors of the estimated effects, so our inference on not only the PCBs, but also for other predictors, can be severely limited by adjusting for all of them. Two approaches are discussed. We excluded all PCB levels and included the first principal component from the principal components analysis (PCA). Since this principal component is a weighted sum of all PCB members that are standardized to unit scale, it can be thought of as a proxy variable for "adjusted total" PCB levels. Direct interpretation of the effect magnitude based on regression estimates, however, is not feasible. Alternatively, we used variable selection methods to exclude PCB variables that are deemed unimportant for the model, and re-fit the regression based on the selected variables only. Both appraoches requir a two-stage procedure. In the first stage, we either construct a new PCB predictor based on Principal Component Analysis (PCA) or select representative PCBs by Lasso. In the second stage, we include the PCB predictors from the first stage and other potential predictors in the binary/ordinary logistic regression.
+For any regression model estimation, high correlation between 12 different PCB chemicals pose challenge (see Figure \ref{fig:cor}). High correlation between predictors inflates standard errors of the estimated effects, so our inference for all predictors in the model can be severely limited. Two approaches are discussed. First, we exclude all PCB levels and includ the first principal component from the principal components analysis (PCA). Since this principal component is a weighted sum of all PCB members that are standardized to unit scale, it can be thought of as a proxy variable for "adjusted total" PCB levels. Direct interpretation of the effect magnitude based on regression estimates, however, is not feasible. Alternatively, we fit LASSO regression, a regression placing penalty on inclusion of more variables, to exclude a number of PCB variables. The selected variables are then included in the logistic model, so the effect estimates for individual PCB variables are interpretable.
 
 #### Results
 
 ##### Exploratory Data Analysis
+Predictors adjusted for in the model include DDE ($\mu$g), PCB-related variables (originally measured in ng), triglycerides and cholesterol levels (g/dL), race, maternal age, and smoking status. The three score variables corresponding to the subjects' income, occupation, and education were not recorded for about 20\% of the entire sample. In a PCA-logistic model, these variables were excluded based on the results of $F$-test against model not including score variables. In a LASSO-logit model, they were also considered for variable selection after imputation. Sensitivity analysis result is shown in Section 3.3. 
 
-We dropped `albumin` since 90\% data is missing (Figure \ref{fig:mis}), and we excluded one subject for whom no PCB levels were measured. We noticed that three score variables corresponding to the subjects' income, occupation, and education have substantial number of missing values (20\%),and we made different decisions on dealing with the missing values. In the PCA-logistic model, the ANOVA test suggests that including socio-economic indices (score variables) in the model is accepted. while in the Lasso-logistic model, we excluded them. A sensitivity analysis is conducted to address the missing problem. 
-
-Additonally, a severe multicollinearity exists among PCBs as shown in Figure \ref{fig:cor}, and a heterogeneity across centers exists as shown in Figure \ref{fig:heter_center}. We noticed that different centers have distinct demographic background (such as race and income), so we assume each center cannot borrow information from others, and then considered fix effects for 12 centers instead of random effects. For simplicity, we did not consider the interaction between centers and other predictors.
+Figure \ref{fig:heter_center} shows heterogeneity in racial composition of subjects across different centers in the study. Categorical variables for each subject, indicating which center she has delivered at, were thus added in the regression model. These variables are shifts in the mean preterm delivery risk corresponding to each center. There are alternative approaches to modeling this heterogeneity than this "fixed effect" model, as we discuss at the end.
 
 ##### Main Results
+Based on the binary logistic regression model, the significant predictors include DDE, proxy variable for PCB levels, triglyceride and cholesterol levels, along with mean shifts in centers 15, 37, and 82. These centers comprise primarily of black race subjects; accordingly, we see insignificant effect for race variable. Estimated model effects and their 95\% confidence intervals can be found in Table 1. Most of the estimates have a direct scientific interpretation. For instance, for a 1$\mu$g increase in DDE exposure, adjusted for all other variables, a mother has 0.8\% increased odds of premature delivery. Similarly, for a 1g/dL increase in triglyceride level, adjusted for other variables, a mother has 0.3\% increased odds of premature delivery. Such inference, however, is hampered for PCB, as discussed in Section 2. Ordinal logistic model estimates mostly agree in the signs and magnitudes of the effects; however, cholesterol level is no longer considered a significant variable. 
 
-Based on the binary logistic regression model, the significant predictors include DDE, proxy variable for PCB levels, triglyceride and cholesterol levels, along with mean shifts in centers (15,37,82) for which subjects are primarily of black race. Estimated model effects and their 95\% confidence intervals can be found in Table 1. Most of the estimates have a direct scientific interpretation. For instance, for a 1$\mu$g increase in DDE exposure, adjusted for all other variables, a mother has 0.8\% increased odds of premature delivery. Similarly, for a 1g/dL increase in triglyceride level, adjusted for other variables, a mother has 0.3\% increased odds of premature delivery. Such inference, however, is hampered for PCB, as discussed above. We do get an expected positive sign, indicating that PCB has effect oc increasing preterm delivery odds. Ordinal logistic model estimates mostly agree in the signs and magnitudes of the effects; however, cholesterol level is no longer considered a significant variable. 
+LASSO logit model that minimizes the binomial deviance criterion estimates non-zero coefficients for PCBs 074 and 153. Likelihood ratio test against the model excluding these two variables suggest evidence of non-zero, significant effect these two chemicals in particular have on preterm delivery risks (Table 3). The coefficient estimates and confidence intervals of the sequentially re-fit linear model, of which the signs and magnitudes are consistent with the estimates of the previous approach, can be found in Table 2. Overall, our models agree that there is evidence of significant effect of DDE and PCB exposures on increased risk of pre-term deliveries.
 
-Based on the lasso regression, we selected PCB 074 and PCB 153 as the representatives for PCBs with the minimizing binomial deviance criterion. The likelihood ratio test suggests that the potential effects of PCB 74 and PCB 153 on the risk of preterm delivery are significantly non-zero (Table 3). Then We fit the models using selected PCBs, DDE and other demorgraphic predictors for adjustation in binary and ordinal logistic regression. The estimated coefficients are similar to those using PCA-logistic model, and can be found in Table 2. Thus, we can also conclude that higher exposure to both DDE and PCB is associated with higher odds of preterm delivery.
-
-The lasso-logistic model performs slightly better than the PCA-logistic model in terms of BIC (1625 and 2054 for binary and ordinal logistic regression versus 2061 and 2643 for PCA-logistic models) and diagnosis plots. Additionally, the lasso-logistic model takes advantages on interpretating the potential effect of PCBs. For instance, in the logistic model, for one unit increase in PCB 074 exposure, adjusted for all other variables (notice socio-economic status are adjusted in the model), a mother is expected to has 44.5\% increased odds of premature delivery. 
+The LASSO logit model slightly improves the Bayesian information criterion (BIC) of the PCA-logistic model (1625/2054 for binary/ordered, versus 2061/2643). Lower values of BIC indicate better explanatory power of the model, adjusted for penalties to including too many predictors.The former approach has additional advantage of retaining the interpretability of selected PCB effects on data scale: a 1ng increase in PCB 074 exposure, adjusted for other included variables, corresponds to 44.5\% increased odds of premature delivery. 
 
 ##### Sensitivity Analysis
-
-As introduced above, the models selected by lasso regression involve the score variables about income, education and occupation. With about 20% missingness of score variables, we decided to impute the score variables, and refit the models to see whether there is signiciant change in our result. The method of imputation is called Predictive Mean Matching, which extracts the information from the observations without missing values, and uses that to make assumption about the missing entry. Specially, for each missing entry, the method forms a set of complete observations with the predicted values that are close to the predcition of that, and randomly draws the observed value of an obervation to replace the missing value.
-
-After refitting the logistic and ordinal logistic models using the imputed data, we observed that there is almost no change for the estimates of the coefficient for DDE, PCB_074 and PCB_153. At the same time, the confidence intervals for those coefficients narrow a little bit, which match up our intuition. Thus, our models generated based on a lasso selection seems to be robust. 
-
+LASSO model considers all observed features as possible variables to be selected. Predictive mean matching algorithm was used to impute the missing entries before fitting the model. For both binary and ordered LASSO-logit fits, sensitivity analyses were performed by comparing the estimated log odds with and without imputed values (see Figs. \ref{fig:dia_sensi1} and \ref{fig:dia_sensi2}). We observe specifically the interval estimates for DDE and PCB variables are quite robust to imputed values.
 
 #### Discussion
+All of our models are limited by the fact that the estimates and standard errors overstate our certainty one way or another, as the additional uncertainty caused by modeling decision for multiple PCB variables is not accounted for. Alternative methods we have explored but not included in this report include Bayesian estimation methods with different models. In particular, a hierarchical regression that incorporates heterogeneity bettween centers as random effects will be desirable over fixed effects model. Furthermore, the Bayesian factor model that models different PCB variables by a latent factor can overcome the previously discussed limitations of the PCA-logit model, including lack of direct interpretation of the magnitude of the effect. Fitting such complex models, however, can confront numerical instabilities in estimation unless we carefully parametrize the model. 
 
-In addition to the frequentist methods we have described above, we also tried Bayesian methods, including Bayesian Model Averaging, Bayesian lasso, and a Hierarchical prior on center effects. Fortunately, we were able to select the same PCB covariates using Bayesian lasso, but the results for prediction is not satisfying. The confidence intervals for coefficients are large, and cover $0$, and mixing seems poor when we generated $10000$ samples. 
+Another natural extension of our model will be allowing each coefficient $\beta$ to vary by different delivery periods, or even binned preterm delivery categories. Such model overcomes the proportional odds assumption discussed in Section 2, which is both restrictive and difficult to diagnose through the residuals. Finally, modeling interactions will be a natural extension that may call for Bayesian methods with a strong prior given our relatively small sample size.  
 
 
 \clearpage
@@ -100,12 +93,6 @@ data_46[data_46$gestational_age>46,"gestational_age"]=46
 data_46=data_46%>%select(-albumin)%>%mutate(race=factor(race),center=factor(center))
 data_46$earlylvl <- cut(data_46$gestational_age,
                                        breaks = c(0, 31, 33, 36, 46), right = TRUE)
-#data_46 %>%
-#  dplyr::select(gestational_age:triglycerides,-triglycerides,-dde) %>%
-#  gather() %>% 
-#  ggplot(aes(value)) +
-#    facet_wrap(~ key, scales = "free") +
-#    geom_histogram() + theme_bw()
 ```
 
 ```{r corrplot, echo=FALSE,cache=TRUE, fig.width = 3.4,fig.cap="\\label{fig:cor} Correlation plot across PCBs"}
@@ -269,6 +256,11 @@ colnames(a1)=c("Deviance","Df","Pr(>Chi)")
 colnames(a2)=c("Deviance","Df","Pr(>Chi)")
 tbl_test=rbind(a1,a2)
 rownames(tbl_test)=NULL
+```
+
+```{r lassohptest, echo=F, include=T}
+knitr::kable(tbl_test, format = "latex", digits = 3,
+             caption = "Testing for PCBs in logisitic and Ordinal logistic")
 ```
 
 
@@ -467,11 +459,3 @@ ggplot(sensi_logistic, aes(x = name, y = mean,ymin = lower, ymax =higher,
     theme(plot.title = element_text(size = 12,face="bold" )) + 
     theme(axis.title=element_text(size="12") ,axis.text=element_text(size=12)) 
 ```
-
-
-\clearpage
-
-
-
-##### References
-
