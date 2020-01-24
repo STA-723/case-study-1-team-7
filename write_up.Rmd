@@ -14,12 +14,7 @@ header-includes:
 ---
 
 ```{r setup, echo=F}
-knitr::opts_chunk$set(
-	message = FALSE,
-	warning = FALSE,
-	include = FALSE
-)
-
+knitr::opts_chunk$set(fig.align='center')
 Longnecker <- readRDS("Longnecker.rds")
 ```
 
@@ -28,15 +23,18 @@ Longnecker <- readRDS("Longnecker.rds")
 
 We study the association between exposure to Dichlorodiphenyldichloroethylene (DDE) and 12 Polychlorinated Biophenyl (PCB) members and the risk of premature delivery. To address the collinearity caused by PCB members, we consider a two-stage modeling process to hybrid Principal Component Analysis (PCA) to binary/ordinal logistic regression. As an alternative, we also consider selecting representative PCBs based on lasso in the first stage. Both models suggest higher exposure to both DDE and PCB is associated with higher odds of preterm delivery.  
 
+The project studied the association between exposure to Dichlorodiphenyldichloroethylene (DDE) and 12 Polychlorinated Biophenyl (PCB) members and the risk of premature delivery. Because of the collinearity caused by PCB members, two approaches applied follow a two-stage modeling process. One is to use hybrid Principal Component Analysis (PCA) to binary/ordinal logistic regression, and the other is to select important PCBs based on lasso regression, and then fit the binary/ordinal logistic model. The analysis of both methods suggest that higher exposure to both DDE and PCB is associated with higher odds of preterm delivery.
+
 #### Introduction
-  
-Dichlorodiphenyltrichloroethane (DDT) and Polychlorinated biphenyl (PCB) were proved to be toxic, leading to a ban on use in United States in 1972, 1978 respectively. We are interested in whether and how the DDE and PCB relate to risk of premature delivery adjusting other possible confounders such as physical background, demographic background and socio-economic status. Our data comes from a subsample of the US Collaborative Perinatal Project (CPP) conducted by Longecker et al. (2001), which contain concentration doses for DDE and PCBs as well as the gestational ages of 2380 women in 12 medical centers. Other potential predictors are provided such as triglycerides and cholesterol (fat chemicals), smoking status and demographic characteristics such as race, age and socio-economic index. 
+
+Dichlorodiphenyltrichloroethane (DDT) and Polychlorinated biphenyl (PCB) were proved to be toxic, leading to a ban on use in United States in 1972, 1978 respectively. We are interested in whether and how the DDE and PCB relate to the risk of premature delivery adjusting other possible confounders such as physical background, demographic background and socio-economic status. The data comes from a subsample of the US Collaborative Perinatal Project (CPP) conducted by Longecker et al. (2001), which contains concentration doses for DDE and PCBs as well as the gestational ages of 2380 women in 12 medical centers. Other potential predictors are provided such as triglycerides and cholesterol (fat chemicals), smoking status and demographic characteristics such as race, age and socio-economic index.
 
 #### Materials and Methods
 
-We consider a class of linear regression models that can model the linear association between the probability of preterm delivery and predictors of interest on some suitable scale. In particular, we consider a logistic regression model, where the log-odds of premature delivery are modeled by a linear combination of DDE and PCB levels. While binary logistic regression is a standard method, we suffer loss of information on different delivery periods, which contains information about different levels of risk on the infants' health. Therefore, we bin the gestational ages to reflect increasing levels of risk prescribed by NIH and consider an ordinal logistic regression as follows:
+In order to model the linear association between the probability of preterm delivery and predictors of interest on some suitable scale, We considered a logistic regression model, where the log-odds of premature delivery are modeled by a linear combination of DDE and PCB levels. While binary logistic regression is a standard method, we suffer loss of information on different delivery periods, which contains information about different levels of risk on the infants' health. Therefore, we binned the gestational ages to reflect increasing levels of risk prescribed by NIH and consider an ordinal logistic regression as follows:
 $${\rm Pr}(Y_i\leq k|\mathbf{x}_i) = {\rm logit}^{-1}(\alpha_{k} + \mathbf{x}_i^T\beta)\iff {\rm Odds}(Y_i \leq k|\mathbf{x}_i) = e^{\alpha_k} e^{\mathbf{x}_i^T\beta},$$
 where $Y_i$ with four possible values, $k=1,2,3,4$, each corresponding to different categories of preterm delivery with increasing level of infant health risk. The model comes with an assumption that the odds corresponding to each of these levels are proportional. The data exhibit some indication that the model assumption can be violated, which will be discussed in the Discussion Section. (i.e., DDE is observed to have stronger association with premature delivery, as we move from late preterm (nearly around 37-week threshold) to earlier delivery periods.)
+
 
 The main challenge is high correlation between multiple PCB variables. High correlation between predictors in the regression is known to inflate standard errors of the estimated effects, so our inference on not only the PCBs, but also for other predictors, can be severely limited by adjusting for all of them. Two approaches are discussed. We can either take a weighted sum of PCB variables after standardizing them to the same scale, and adjust for this single variable as a proxy for "aggregated" PCB levels. Alternatively, we can use variable selection methods to exclude PCB variables that are deemed unimportant for the model, and re-fit the regression based on the selected variables only. We consider a two-stage procedure. In the first stage, we either construct a new PCB predictor based on Principal Component Analysis (PCA) or select representative PCBs by Lasso. In the second stage, we include the PCB predictors from the first stage and other potential predictors in the binary/ordinary logistic regression.
 
@@ -45,14 +43,12 @@ The main challenge is high correlation between multiple PCB variables. High corr
 
 ##### Exploratory Data Analysis
 
-Figure \ref{fig:mis} shows the missing values at each predictor. We exclude the predictor `albumin` for it contains over 90% missing values. In the PCA-logistic model, the ANOVA test of a logistic regression model that includes scores against a model that does not failed to reject the null of no significant effect, which offers justification of not including these in the final model. Thus, we have excluded only 1 subject for whom no PCB levels were measured. In the Lasso-logistic model, we excluded around 22% observations due to the missing values on socio-economic indices and 1 observation with missing value on PCB level. A sensitivity analysis is also conducted to addressing the problem. 
+We dropped `albumin` since 90\% data is missing (Figure \ref{fig:mis}), and we excluded one subject for whom no PCB levels were measured. We noticed that three score variables corresponding to the subjects' income, occupation, and education have substantial number of missing values (20\%),and we made different decisions on dealing with the missing values. In the PCA-logistic model, the ANOVA test suggests that including socio-economic indices (score variables) in the model is accepted. while in the Lasso-logistic model, we excluded them. A sensitivity analysis is conducted to address the missing problem. 
 
-As shown in Figure \ref{fig:cor} , strong correlations exist among PCBs, which suggest a severe multicollinearity may exist among PCBs. Figure \ref{fig:heter_center} shows a heterogeneity across centers exist. Since different centers have distinct demographic background (such as race and income), we assume each center cannot borrow information from others and consider fix effects for 12 centers instead of random effect. For simplicity and to save the degree of freedom, we do not consider the interaction between centers and other predictors.
-
+Additonally, a severe multicollinearity exists among PCBs as shown in Figure \ref{fig:cor}, and a heterogeneity across centers exists as shown in Figure \ref{fig:heter_center}. We noticed that different centers have distinct demographic background (such as race and income), so we assume each center cannot borrow information from others, and then considered fix effects for 12 centers instead of random effects. For simplicity, we did not consider the interaction between centers and other predictors.
 
 ##### Main Results
 
-Based on the binary logistic regression model, the significant predictors include DDE, proxy variable for PCB levels, triglyceride and cholesterol levels, along with mean shifts in centers (...) for which subjects are primarily of black race. Estimated model effects and their 95\% confidence intervals can be found in Table 
 For binary logistic regression, we consider a birth that takes place less than 37 weeks as preterm delievery. For ordinal logistic regression, we consider four categories with 32, 36, 37 as thresholds to bin the gestational age into four categories: "very preterm", "moderate", "late preterm" and "normal-late". 
 
 To account for high correlation between PCB members that can inflate variance of the estimated effects, we excluded all PCB levels and included the first principal component from the principal components analysis (PCA). Since this principal component is a weighted sum of all PCB members that are standardized to unit scale, it can be thought of as a proxy variable for "adjusted total" PCB levels. Direct interpretation of the effect magnitude based on regression estimates, however, is not feasible.  
@@ -61,7 +57,7 @@ Based on the binary logistic regression model, the significant predictors includ
 
 As an alternative way, we select PCB 74 and PCB 153 as representatives for PCBs based on the minimizing binomial deviance criterion. We include selected PCBs and DDE, along with DDE and adjusting other demorgraphic predictor in binary and ordinal logistic regression, as shown in Table 2. Table 3 present the result from liklihood ratio testing suggesting the potential effects on the risk of preterm delivery of PCB 74 and PCB 153 are significantly non-zero. The result suggests higher exposure to both DDE and PCB is associated with higher odds of preterm delivery, which is consistent with Table 1. 
 
-PCA-logistic model performs slightly better than Lasso-logistic model in terms of BIC and AUC as shown in Table. However, Lasso-logistic model take advantages on interpretating the potential effect of PCBs. For instance, in the logistic model,for a 1 unit increase in PCB 74 exposure, adjusted for all other variables (notice socio-economic status are adjusted in the model), a mother is expected to has 36.8\% increased log odds of premature delivery.
+Lasso-logistic model performs slightly better than PCA-logistic model in terms of BIC (1625 and 2054 for binary and ordinal logistic regression versus 2061 and 2643 for PCA-logistic models) and diagnosis plot . Also, Lasso-logistic model take advantages on interpretating the potential effect of PCBs. For instance, in the logistic model,for a 1 unit increase in PCB 74 exposure, adjusted for all other variables (notice socio-economic status are adjusted in the model), a mother is expected to has 0.368 increased log odds of premature delivery.
 
 ##### Sensitivity Analysis
 
@@ -79,10 +75,9 @@ In addition to the frequentist methods we have described above, we also tried Ba
 
 #### Tables and Figures
 
-...All tables and figures go here!...
+##### EDA
 
-<<<<<<< HEAD
-```{r echo=FALSE}
+```{r, message=FALSE, warning=FALSE, include=FALSE}
 library(arm)
 library(corrplot)
 library(naniar)
@@ -96,9 +91,112 @@ library(MASS)
 library(ggmosaic)
 library(mice)
 library(ordinalNet)
+library(glmnet)
 ```
 
+```{r mis, echo=FALSE, fig.cap="\\label{fig:mis} Missing Data", message=FALSE, warning=FALSE, cache=TRUE}
+data=readRDS("Longnecker.rds")
+data=data %>% dplyr::select(gestational_age, dde:cholesterol, center)
+gg_miss_upset(data)
+```
+
+```{r hist, echo=FALSE, message=FALSE, warning=FALSE,cache=TRUE}
+data_46=data#%>%mutate(y=gestational_age)
+data_46[data_46$gestational_age>46,"gestational_age"]=46
+data_46=data_46%>%select(-albumin)%>%mutate(race=factor(race),center=factor(center))
+data_46$earlylvl <- cut(data_46$gestational_age,
+                                       breaks = c(0, 31, 33, 36, 46), right = TRUE)
+#data_46 %>%
+#  dplyr::select(gestational_age:triglycerides,-triglycerides,-dde) %>%
+#  gather() %>% 
+#  ggplot(aes(value)) +
+#    facet_wrap(~ key, scales = "free") +
+#    geom_histogram() + theme_bw()
+```
+
+```{r corrplot, echo=FALSE,cache=TRUE, fig.width = 3.4,fig.cap="\\label{fig:cor} Correlation plot across PCBs"}
+data_ = data %>% mutate(race=as.numeric(race))
+M2 = cor(as.matrix(na.omit(data_%>%select(pcb_028:pcb_203))))
+corrplot.mixed(M2,number.cex=0.7, upper="ellipse",tl.cex=0.5)
+```
+
+```{r heter, echo=FALSE, cache=TRUE,fig.cap="\\label{fig:heter_center} Heterogeneity across Centers"}
+ggplot(data,mapping = aes(x=as.factor(center),y=gestational_age))+geom_boxplot()+theme_bw()+xlab("center")
+```
+
+##### PCA-logistic
+
+```{r boilerplate_for_models, echo=F, include=F}
+Longnecker <- readRDS("./Longnecker.rds")
+Longnecker <- Longnecker[,colnames(Longnecker)!="albumin"] # Throw away albumin
+Longnecker$center <- as.factor(Longnecker$center) # Factorize center
+Longnecker[Longnecker$gestational_age > 46, "gestational_age"] <- 46 # Truncate at age == 46
+complete_formula <- as.formula(
+  "gestational_age ~ dde + pcb_028 + pcb_052 + pcb_074 + pcb_105 + 
+  pcb_118 + pcb_153 + pcb_170 + pcb_138 + pcb_180 + pcb_194 + pcb_203 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center"
+)
+x <- model.matrix(complete_formula, data = Longnecker)
+miss_indices <- as.integer(row.names(x))
+Longnecker_complete <- Longnecker[miss_indices,] # Only those non-missing obs.
+PC1_pcb <- prcomp(x[,grepl("pcb", colnames(x))], scale.=TRUE)$x[,1]
+Longnecker_complete_pc <- cbind.data.frame(
+  Longnecker_complete[,!grepl("pcb", colnames(Longnecker_complete))],
+  PC1 = PC1_pcb)
+# Mutation: gestational week => categorical variables
+Longnecker_complete_pc$early <- (Longnecker_complete_pc$gestational_age < 37)
+Longnecker_complete_pc$earlylvl <- cut(Longnecker_complete_pc$gestational_age,
+                                       breaks = c(0, 31, 33, 36, 46), right = TRUE)
+```
+
+
+```{r, echo=F, include=T}
+pca_formula1 <- as.formula("early ~ dde + PC1 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center")
+pca_formula2 <- as.formula("earlylvl ~ dde + PC1 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center")
+# 1. Binary logistic
+llm_with_pc <- glm(pca_formula1, family = binomial, 
+                   data = Longnecker_complete_pc)
+# 2. Ordinal logistic
+olm_with_pc <- polr(pca_formula2, data = Longnecker_complete_pc)
+#
+llm_coefs <- coef(llm_with_pc)
+llm_confint <- suppressMessages(confint(llm_with_pc))
+llm_coefs <- cbind.data.frame(Mean = llm_coefs, llm_confint)
+#
+olm_coefs <- -1 * coef(olm_with_pc)
+olm_confint <- suppressMessages(-1 * confint(olm_with_pc)[,c(2,1)])
+olm_coefs <- suppressMessages(cbind.data.frame(Mean = olm_coefs, olm_confint))
+colnames(olm_coefs) <- colnames(olm_coefs)[c(1,3,2)]
+```
+
+```{r, echo=F, include=T}
+knitr::kable(llm_coefs, format = "latex", digits = 3,
+             caption = "Logistic")
+knitr::kable(olm_coefs, format = "latex", digits = 3,
+             caption = "Ordinal logistic")
+```
+
+```{r, echo=F, message=F, include=T}
+blo <- summary(olm_with_pc)$coefficients[20:22, "Value"] # baseline log-odds
+bprobs <- exp(blo) / (1+exp(blo))
+# Transforming +/- 2SE to probability scale
+odds_lb <- exp(blo) * exp(-2 * summary(olm_with_pc)$coefficients[20:22, "Std. Error"])
+odds_ub <- exp(blo) * exp(2 * summary(olm_with_pc)$coefficients[20:22, "Std. Error"])
+probs_lb <- odds_lb / (1 + odds_lb); probs_ub <- odds_ub / (1 + odds_ub) 
+knitr::kable(cbind.data.frame("Lower bound" = probs_lb,
+                              "Mean" = bprobs,
+                              "Upper bound" = probs_ub,
+                              row.names = c("Very preterm", "Moderately", "Late preterm")
+                              ),
+             format = "latex", digits = 3)
+```
+
+##### Lasso-logistic
+
 ```{r lasso, cache=T,echo=F, eval=T}
+library("glmnet")
 data=readRDS("Longnecker.rds")
 data=data%>%dplyr::select(gestational_age,dde:cholesterol,center)
 data_46=data%>%mutate(y=gestational_age)
@@ -115,6 +213,8 @@ cv.lasso2 <- cv.glmnet(x, y, alpha = 1,family="binomial")
 # Fit the final model on the training data
 model2 <- glmnet(x, y, alpha = 1,family="binomial",
                 lambda = cv.lasso2$lambda[27])
+#plot(cv.lasso2) # logistic
+#coef(model2) # dde, pcb_074, 153; the one with min mse, if relax the penalty a little bit, will include all the demographic characters
 ```
 
 ```{r glmlasso, cache=T,echo=F, eval=T}
@@ -132,12 +232,122 @@ model21_o <- glm(formula_lasso_o, family = binomial,
                    data = train.data)
 ```
 
-```{r cilassolog, include=FALSE}
+```{r cilassolog, cache=T,echo=F, include=FALSE}
 lasso_coef <- coef(model21_w)
 lasso_confint <- suppressMessages(confint(model21_w))
 lassso_coefs <- cbind.data.frame(Mean = lasso_coef, lasso_confint)
 ```
 
+```{r ordlasso, cache=T,echo=F, include=FALSE}
+library("ordinalNet")
+train.data.ord=data_46_wscore
+train.data.ord$y <- cut(train.data.ord$y,
+                                       breaks = c(0, 31, 33, 36, 46), right = TRUE)
+ord.x=model.matrix(y~.,data=train.data.ord)
+#ordlasso.model <- ordinalNet(ord.x, train.data.ord$y, family="cumulative", link="logit",
+#                   parallelTerms=TRUE, nonparallelTerms=FALSE,alpha=1)
+#coef(ordlasso.model) # pcb_028,074,153,138
+formula_lasso_w.ord <- as.formula(
+  "y ~ dde + pcb_074 + pcb_153 +
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center + score_education + score_income + score_occupation"
+)
+formula_lasso_o.ord <- as.formula(
+  "y ~ dde + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center + score_education + score_income + score_occupation"
+)
+model21_w.ord <- polr(formula_lasso_w.ord, 
+                   data = train.data.ord)
+model21_o.ord <- polr(formula_lasso_o.ord, 
+                   data = train.data.ord)
+```
+
+```{r cilassoord, include=FALSE}
+olasso_coefs <- -1 * coef(model21_w.ord)
+olasso_confint <- suppressMessages(-1 * confint(model21_w.ord)[,c(2,1)])
+olasso_coefs <- suppressMessages(cbind.data.frame(Mean = olasso_coefs, olasso_confint))
+colnames(olasso_coefs) <- colnames(olasso_coefs)[c(1,3,2)]
+```
+
+```{r lassotest,include=FALSE}
+a1=anova(model21_o,model21_w,test="LRT")[2,c(4,3,5)]
+a2=anova(model21_o.ord,model21_w.ord)[2,c(6,5,7)]
+colnames(a1)=c("Deviance","Df","Pr(>Chi)")
+colnames(a2)=c("Deviance","Df","Pr(>Chi)")
+tbl_test=rbind(a1,a2)
+rownames(tbl_test)=NULL
+```
+
+
+```{r lassores, echo=F, include=T}
+knitr::kable(lassso_coefs, format = "latex", digits = 3,
+             caption = "Logistic")
+knitr::kable(olasso_coefs, format = "latex", digits = 3,
+             caption = "Ordinal logistic")
+```
+
+```{r modelcompare, echo=F,include=T}
+BIC=c(BIC(llm_with_pc),BIC(olm_with_pc),BIC(model21_w),BIC(model21_w.ord))
+model.name=c("PCA-binary","PCA-ordinal","Lasso-binary","Lasso-ordinal")
+```
+
+```{r, echo=F, include=T,fig.cap="\\label{fig:dia_pca} Diagnosis of Lasso-logistic"}
+par(mfrow = c(1, 2))
+binnedplot(fitted(llm_with_pc),
+           residuals(llm_with_pc, type = "response"),
+           nclass = 40,
+           xlab = "Fitted response",
+           ylab = "Residual",
+           main = "PCA-Logistic regression (40 bins)")
+
+binnedplot(fitted(model21_w),
+           residuals(model21_w, type = "response"),
+           nclass = 40,
+           xlab = "Fitted response",
+           ylab = "Residual",
+           main = "Lasso-Logistic regression (40 bins)")
+```
+
+##### Sensitivity Analysis
+
+```{r lassox, cache=T, include=FALSE}
+data=readRDS("Longnecker.rds")
+data=data%>%dplyr::select(gestational_age,dde:cholesterol,center)
+data_46=data%>%mutate(y=gestational_age)
+data_46[data_46$y>46,"y"]=46
+data_46=data_46%>%dplyr::select(-gestational_age,-albumin)%>%mutate(race=factor(race),center=factor(center))
+data_46_wscore=data_46%>%na.omit()
+set.seed(123)
+train.data=data_46_wscore
+x <- model.matrix(y~., train.data)[,-1]
+# Convert the outcome (class) to a numerical variable
+y <- ifelse(train.data$y<37,1,0)
+train.data$y=y
+cv.lasso2 <- cv.glmnet(x, y, alpha = 1,family="binomial")
+# Fit the final model on the training data
+model2 <- glmnet(x, y, alpha = 1,family="binomial",
+                lambda = cv.lasso2$lambda.min)
+```
+
+```{r glmlassox, cache=T,echo=F, eval=T}
+formula_lasso_w <- as.formula(
+  "y ~ dde + pcb_074 + pcb_153 + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center + score_education + score_income + score_occupation"
+)
+formula_lasso_o <- as.formula(
+  "y ~ dde + 
+  triglycerides + race + maternal_age + smoking_status + cholesterol + center + score_education + score_income + score_occupation"
+)
+model21_w <- glm(formula_lasso_w, family = binomial, 
+                   data = train.data)
+model21_o <- glm(formula_lasso_o, family = binomial, 
+                   data = train.data)
+```
+
+```{r cilassologx, include=FALSE}
+lasso_coef <- coef(model21_w)
+lasso_confint <- suppressMessages(confint(model21_w))
+lassso_coefs <- cbind.data.frame(Mean = lasso_coef, lasso_confint)
+```
 
 ```{r cache=T,echo=F}
 train.data.ord=data_46_wscore
@@ -161,7 +371,7 @@ model21_o.ord <- polr(formula_lasso_o.ord,
                    data = train.data.ord)
 ```
 
-```{r include=FALSE}
+```{r ,cache=T,echo=F, include=FALSE}
 olasso_coefs <- -1 * coef(model21_w.ord)
 olasso_confint <- suppressMessages(-1 * confint(model21_w.ord)[,c(2,1)])
 olasso_coefs <- suppressMessages(cbind.data.frame(Mean = olasso_coefs, olasso_confint))
@@ -169,7 +379,7 @@ colnames(olasso_coefs) <- colnames(olasso_coefs)[c(1,3,2)]
 ```
 
 
-```{r echo=FALSE}
+```{r echo=F, cache=T, include=F}
 data=readRDS("Longnecker.rds")
 data=data%>%dplyr::select(gestational_age,dde:cholesterol,center)
 data_46=data%>%mutate(y=gestational_age)
@@ -206,7 +416,9 @@ lassso_coefs_impute <- cbind.data.frame(Mean = lasso_coef, lasso_confint)
 
 
 sensi_logistic<- data.frame(name = c("dde", "dde", "pcb074", "pcb074", "pcb153", "pcb153"), mean = c(lassso_coefs[2,1], lassso_coefs_impute[2,1], lassso_coefs[3,1], lassso_coefs_impute[3,1], lassso_coefs[4,1], lassso_coefs_impute[4,1]), lower = c(lassso_coefs[2,2], lassso_coefs_impute[2,2], lassso_coefs[3,2], lassso_coefs_impute[3,2], lassso_coefs[4,2], lassso_coefs_impute[4,2]), higher = c(lassso_coefs[2,3], lassso_coefs_impute[2,3], lassso_coefs[3,3], lassso_coefs_impute[3,3], lassso_coefs[4,3], lassso_coefs_impute[4,3]), type = c("missing", "impute", "missing", "impute", "missing", "impute"))
+```
 
+```{r echo=F, fig.cap="\\label{fig:dia_sensi1} Sensitivity Analysis (Binary)", cache=T,fig.width=4.5}
 ggplot(sensi_logistic, aes(x = name, y = mean,ymin = lower, ymax =higher, 
                color=type)) +
     geom_point(position=position_dodge(width=0.5), size = 2.5) + 
@@ -217,7 +429,7 @@ ggplot(sensi_logistic, aes(x = name, y = mean,ymin = lower, ymax =higher,
 
 ```
 
-```{r ordlasso, cache=T,echo=F}
+```{r ordlassox, cache=T,echo=F,include=F}
 data=readRDS("Longnecker.rds")
 data=data%>%dplyr::select(gestational_age,dde:cholesterol,center)
 data_46=data%>%mutate(y=gestational_age)
@@ -243,14 +455,14 @@ model21_w.ord <- polr(formula_lasso_w.ord,
 
 ```
 
-```{r cilassoord, include=FALSE}
+```{r cilassoordx, include=FALSE}
 olasso_coefs_impute <- -1 * coef(model21_w.ord)
 olasso_confint_impute <- suppressMessages(-1 * confint(model21_w.ord)[,c(2,1)])
 olasso_coefs_impute <- suppressMessages(cbind.data.frame(Mean = olasso_coefs_impute, olasso_confint_impute))
 colnames(olasso_coefs_impute) <- colnames(olasso_coefs_impute)[c(1,3,2)]
 ```
 
-```{r}
+```{r cache=T,echo=F, include=T,fig.cap="\\label{fig:dia_sensi2} Sensitivity Analysis (Ordinal),fig.width=4.5"}
 sensi_logistic<- data.frame(name = c("dde", "dde", "pcb074", "pcb074", "pcb153", "pcb153"), mean = c(olasso_coefs[1,1], olasso_coefs_impute[1,1], olasso_coefs[2,1], olasso_coefs_impute[2,1], olasso_coefs[3,1], olasso_coefs_impute[3,1]), lower = c(olasso_coefs[1,2], olasso_coefs_impute[1,2], olasso_coefs[2,2], olasso_coefs_impute[2,2], olasso_coefs[3,2], olasso_coefs_impute[3,2]), higher = c(olasso_coefs[1,3], olasso_coefs_impute[1,3], olasso_coefs[2,3], olasso_coefs_impute[2,3], olasso_coefs[3,3], olasso_coefs_impute[3,3]), type = c("missing", "impute", "missing", "impute", "missing", "impute"))
 
 ggplot(sensi_logistic, aes(x = name, y = mean,ymin = lower, ymax =higher, 
@@ -260,43 +472,12 @@ ggplot(sensi_logistic, aes(x = name, y = mean,ymin = lower, ymax =higher,
     labs(colour="Type", y="Log Odds", x="") + 
     theme(plot.title = element_text(size = 12,face="bold" )) + 
     theme(axis.title=element_text(size="12") ,axis.text=element_text(size=12)) 
-data=readRDS("Longnecker.rds")
-data=data %>% dplyr::select(gestational_age, dde:cholesterol, center)
-gg_miss_upset(data)
-```
-
-```{r hist, echo=FALSE, message=FALSE, warning=FALSE,cache=TRUE}
-data_46=data#%>%mutate(y=gestational_age)
-data_46[data_46$gestational_age>46,"gestational_age"]=46
-data_46=data_46%>%select(-albumin)%>%mutate(race=factor(race),center=factor(center))
-data_46$earlylvl <- cut(data_46$gestational_age,
-                                       breaks = c(0, 31, 33, 36, 46), right = TRUE)
-#data_46 %>%
-#  dplyr::select(gestational_age:triglycerides,-triglycerides,-dde) %>%
-#  gather() %>% 
-#  ggplot(aes(value)) +
-#    facet_wrap(~ key, scales = "free") +
-#    geom_histogram() + theme_bw()
-```
-
-```{r corrplot, echo=FALSE,cache=TRUE, fig.width = 3.4,fig.cap="\\label{fig:cor} Correlation plot across PCBs"}
-data_ = data %>% mutate(race=as.numeric(race))
-M2 = cor(as.matrix(na.omit(data_%>%select(pcb_028:pcb_203))))
-corrplot.mixed(M2,number.cex=0.7, upper="ellipse",tl.cex=0.5)
-#M3 = cor(as.matrix(na.omit(data_)))
-#M3[1,-1]
-#cordf=data.frame(cor=M3[1,-1],var=names(M3[1,-1]))
-#ggplot(cordf,aes(x=var,y=cor))+geom_point()+theme_bw()
-```
-
-```{r heter, echo=FALSE, cache=TRUE,fig.cap="\\label{fig:heter_center} Heterogeneity across Centers"}
-ggplot(data,mapping = aes(x=as.factor(center),y=gestational_age))+geom_boxplot()+theme_bw()+xlab("center")
 ```
 
 
 \clearpage
 
-##### Appendix
+
 
 ##### References
-...If there are any...
+
